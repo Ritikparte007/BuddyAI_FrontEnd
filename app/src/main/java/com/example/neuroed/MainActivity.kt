@@ -30,11 +30,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 
 import androidx.compose.ui.graphics.graphicsLayer
+import com.example.neuroed.NotificationHelper
+
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Create the notification channel (only required once).
+        NotificationHelper.createLockScreenNotificationChannel(this)
+        // Request notification permission on Android 13+.
+        NotificationHelper.requestNotificationPermission(this)
+
+        // Optionally, show a test notification.
+        NotificationHelper.showLockScreenNotification(
+            this,
+            title = "Lock Screen Notification",
+            message = "This notification will appear on the lock screen."
+        )
         setContent {
             NeuroEdApp()
         }

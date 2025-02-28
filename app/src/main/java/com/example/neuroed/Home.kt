@@ -17,6 +17,12 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraProvider
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.material3.BadgedBox
@@ -38,6 +45,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
+import androidx.compose.ui.focus.focusModifier
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.*
@@ -79,13 +87,14 @@ val aiProfiles = listOf(
 @Composable
 fun HomeScreen(navController: NavController) {
     // A Scaffold that holds the top bar, bottom bar, and floating button
+
+
     Scaffold(
-        // Minimal, clean top bar
         topBar = {
             TopAppBar(
                 // Slight elevation for depth
-                modifier = Modifier.shadow(2.dp),
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                modifier = Modifier.shadow(4.dp),
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
@@ -100,42 +109,50 @@ fun HomeScreen(navController: NavController) {
                     )
                 },
                 actions = {
-                    Row {
+                    IconButton(onClick = { navController.navigate("SubscriptionScreen") }) {
                         Icon(
-                            painter = painterResource(id = R.drawable.notificationbell),
-                            contentDescription = "Notification Bell",
-                            modifier = Modifier.size(20.dp),
-                            tint = Color.Unspecified // Keeps the original color of the drawable
+                            painter = painterResource(id = R.drawable.premium),
+                            contentDescription = "Premium Icon",
+                            modifier = Modifier
+                                .size(25.dp),
+                            tint = Color.Unspecified
                         )
                     }
-                    IconButton(onClick = { navController.navigate("NotificationScreen") }) {
-                        BadgedBox(
-                            badge = {
-                                Badge {
-                                    Text("3") // Replace "3" with your dynamic count value
+
+                        IconButton(onClick = { navController.navigate("NotificationScreen") }) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = Color.White,
+                                        contentColor = Color.Black
+                                    ) {
+                                        Text("0") // Replace with your dynamic count value
+                                    }
                                 }
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.notificationbell),
+                                    contentDescription = "Notification Icon",
+                                    modifier = Modifier
+                                        .size(20.dp),
+//                                        .background(color = Color.White),
+                                    tint = Color.Unspecified
+                                )
                             }
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.notificationbell),
-                                contentDescription = "Notification Icon",
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
                         }
-                    }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate("AutoOpenCameraScreen") },
-                containerColor = MaterialTheme.colorScheme.primary
+//                containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.camera),
                     contentDescription = "Camera Icon",
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    modifier = Modifier.size(40.dp),
+                    tint = Color.Unspecified
                 )
             }
         },
@@ -152,7 +169,7 @@ fun HomeScreen(navController: NavController) {
         ) {
             // "Subject" Title
             item {
-                SectionHeader(title = "Syllabus Hub")
+                SectionHeader(title = "SyllabusHub")
             }
 
             // Subject items (slider)
@@ -209,37 +226,43 @@ fun SubjectList() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .height(230.dp)
+            .horizontalScroll(rememberScrollState()) // Enables horizontal scrolling
+            .fillMaxHeight()
+//            .background(color = Color.Red)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        repeat(6) { // Show fewer items for clarity
+        repeat(6) { // Display 6 subject cards
             Card(
                 modifier = Modifier
-                    .width(160.dp)
-                    .height(200.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .width(130.dp)
+                    .height(190.dp),
+                shape = RoundedCornerShape(13.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Box(
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxSize(),
                 ) {
+                    // Subject Image as Background
                     Image(
-                        painter = painterResource(id = R.drawable.biology),
+                        painter = painterResource(id = R.drawable.mathssub),
                         contentDescription = "Subject Image",
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(16.dp)),
+                            .clip(RoundedCornerShape(10.dp)),
                         contentScale = ContentScale.Crop
                     )
-                    // Overlapping Circular Progress
-                    Box(contentAlignment = Alignment.Center) {
+
+                    // Overlapping Circular Progress in Center
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(60.dp),
                             progress = progress,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Color.White,
                             strokeWidth = 6.dp
                         )
                         Text(
@@ -251,93 +274,163 @@ fun SubjectList() {
                             )
                         )
                     }
+
+                    // Subject Name in Top Left Corner
+                    Box(
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .align(Alignment.TopStart)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Black.copy(alpha = 0.7f)) // Semi-transparent background
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Biology", // Dynamic Subject Name can be set here
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
     }
+
 }
 
 /** ---------------------------
  *       USER PROFILE
  * --------------------------- */
+
 @Composable
-fun UserProfile(navController: NavController) {
-    Row(
+fun UserProfile(
+    navController: NavController,
+    backgroundColor: Color = Color.Black
+) {
+    Card(
         modifier = Modifier
+            .fillMaxWidth()
             .padding(16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(Color(0xFF6DD5FA), Color(0xFF2980B9))
-                )
-            )
-            .padding(16.dp)
-            .clickable {
-                navController.navigate("ProfileScreen")
-            }
+            .clickable { navController.navigate("ProfileScreen") }
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(8.dp),
 
     ) {
-        // User Image
-        Image(
-            painter = painterResource(id = R.drawable.biology),
-            contentDescription = "User Profile",
+        Row(
             modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .border(2.dp, Color.Gray, CircleShape)
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column {
-            Text(
-                text = "John Doe",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // User Image with a circular shape and border.
+            Image(
+                painter = painterResource(id = R.drawable.biology),
+                contentDescription = "User Profile",
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .border(2.dp, Color.Gray, CircleShape)
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Progress Row
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LinearProgressIndicator(
-                    progress = 0.7f,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = Color.Blue,
-                    trackColor = Color.LightGray
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
-                    text = "10",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Rating Stars
-            Row {
-                repeat(5) { index ->
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Star",
-                        tint = if (index < 4) Color.Yellow else Color.Gray,
-                        modifier = Modifier.size(20.dp)
+                    text = "John Doe",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LinearProgressIndicator(
+                        progress = 0.7f,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color.Blue,
+                        trackColor = Color.LightGray
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "10",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row {
+                    repeat(5) { index ->
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Star",
+                            tint = if (index < 4) Color.Yellow else Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+
 /** ---------------------------
  *       BOTTOM NAV BAR
  * --------------------------- */
+
+
+@Composable
+fun VoiceVisualizer(
+    modifier: Modifier = Modifier,
+    barCount: Int = 5,
+    barColor: Color = Color.White,
+    minHeight: Dp = 4.dp,
+    maxHeight: Dp = 16.dp,
+    barWidth: Dp = 4.dp,
+    spaceBetween: Dp = 2.dp
+) {
+    val infiniteTransition = rememberInfiniteTransition()
+    // Create an animated float for each bar
+    val animations = List(barCount) { index ->
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = 500,
+                    easing = LinearEasing,
+                    delayMillis = index * 100
+                ),
+                repeatMode = RepeatMode.Reverse
+            )
+        )
+    }
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(spaceBetween)
+    ) {
+        animations.forEach { anim ->
+            // Interpolate between minHeight and maxHeight based on the animated fraction
+            val height = minHeight + (maxHeight - minHeight) * anim.value
+            Box(
+                modifier = Modifier
+                    .width(barWidth)
+                    .height(height)
+                    .background(barColor, shape = RoundedCornerShape(2.dp))
+            )
+        }
+    }
+}
+
+
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
@@ -349,9 +442,10 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { navController.navigate("CreateSubjectScreen") },
             icon = {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_icon),
+                    painter = painterResource(id = R.drawable.curriculum),
                     contentDescription = "Subject Icon",
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(30.dp),
+                    tint = Color.Unspecified
                 )
             },
             label = { Text("Subject", color = MaterialTheme.colorScheme.onSurface) }
@@ -362,15 +456,16 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { navController.navigate("ReelsScreen") },
             icon = {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_icon),
-                    contentDescription = "Profile Icon",
-                    tint = MaterialTheme.colorScheme.primary
+                    painter = painterResource(id = R.drawable.play),
+                    contentDescription = "Reels",
+                    modifier = Modifier.size(30.dp),
+                    tint = Color.Unspecified
                 )
             },
-            label = { Text("Profile", color = MaterialTheme.colorScheme.onSurface) }
+            label = { Text("Reels", color = MaterialTheme.colorScheme.onSurface) }
         )
 
-        // Microphone button with animation
+        // Microphone button with animation inside the circle.
         NavigationBarItem(
             selected = false,
             onClick = { isListening = !isListening },
@@ -379,15 +474,24 @@ fun BottomNavigationBar(navController: NavController) {
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
+//                        .background(MaterialTheme.colorScheme.primary)
                         .clickable { isListening = !isListening },
                     contentAlignment = Alignment.Center
                 ) {
+                    if (isListening) {
+                        // Draw a circular animated indicator inside the mic button.
+                        VoiceVisualizer(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 8.dp)
+                        )
+                    }
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_icon), // Replace with your mic icon
+                        painter = painterResource(id = R.drawable.voice), // Replace with your mic icon
                         contentDescription = "Mic Icon",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(32.dp
+                        ),
+                        tint = Color.Unspecified
                     )
                 }
             },
@@ -399,9 +503,10 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { navController.navigate("library") },
             icon = {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_icon),
+                    painter = painterResource(id = R.drawable.graph),
                     contentDescription = "Library Icon",
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(30.dp),
+                    tint = Color.Unspecified
                 )
             },
             label = { Text("Library", color = MaterialTheme.colorScheme.onSurface) }
@@ -412,28 +517,14 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { navController.navigate("settings") },
             icon = {
                 Icon(
-                    painter = painterResource(id = R.drawable.square_plus),
+                    painter = painterResource(id = R.drawable.bot),
                     contentDescription = "Character Icon",
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(30.dp),
+                    tint = Color.Unspecified
                 )
             },
             label = { Text("Character", color = MaterialTheme.colorScheme.onSurface) }
         )
-    }
-
-    // Listening Animation
-    if (isListening) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f)),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(80.dp),
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
     }
 }
 
@@ -479,15 +570,15 @@ fun GridItem(text: String, onClick: () -> Unit) {
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+//                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
             // Optionally place an icon or image inside
             Icon(
-                painter = painterResource(id = R.drawable.ic_icon),
+                painter = painterResource(id = R.drawable.test),
                 contentDescription = text,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = Color.Unspecified
             )
         }
 
@@ -510,9 +601,13 @@ fun AIProfileScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+
+//            .background(color = Color.Red)
     ) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(1.dp)
+        ){
             items(aiProfiles) { profile ->
                 AIProfileCard(profile) {
                     navController.navigate("ChatScreen")
@@ -521,7 +616,6 @@ fun AIProfileScreen(navController: NavController) {
         }
     }
 }
-
 @Composable
 fun AIProfileCard(
     profile: AIProfile,
@@ -529,61 +623,114 @@ fun AIProfileCard(
 ) {
     Card(
         modifier = Modifier
-            .width(150.dp)
-            .padding(4.dp)
+            .width(170.dp)
+            .height(220.dp)
+            .padding(8.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+                .fillMaxWidth()
+                .padding(8.dp), // Reduced from 12.dp
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Image
-            Image(
-                painter = painterResource(id = profile.image),
-                contentDescription = "AI Profile Image",
+            // Profile Image Container
+            Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(80.dp) // Reduced from 90.dp to fit height
                     .clip(CircleShape)
-                    .border(2.dp, Color.Gray, CircleShape)
-            )
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = profile.image),
+                    contentDescription = "AI Profile Image",
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape)
+                )
+            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Name
             Text(
                 text = profile.name,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
+                fontSize = 13.sp, // Slightly larger for readability
                 color = MaterialTheme.colorScheme.onSurface
             )
+
+            Spacer(modifier = Modifier.height(2.dp))
 
             // Description
             Text(
                 text = profile.description,
-                fontSize = 13.sp,
+                fontSize = 10.sp, // Slightly bigger than 9.sp
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.padding(horizontal = 6.dp)
             )
 
-            // Rating
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "Rating",
-                    tint = Color.Yellow,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Rating & Chat Info
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Rating
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Rating",
+                        tint = Color(0xFFFFD700), // Gold color
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "${profile.rating}",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Chat
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.MailOutline,
+                        contentDescription = "Chat count",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "Chat",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Chat Button
+            Button(
+                onClick = { onClick() },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth(0.85f)
+            ) {
                 Text(
-                    text = "${profile.rating}",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "Chat Now",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

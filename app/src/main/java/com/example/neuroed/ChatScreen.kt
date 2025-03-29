@@ -1,5 +1,8 @@
 package com.example.neuroed
 
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,7 +24,18 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import org.json.JSONException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Data class for each message in the chat
 data class ChatMessage(
@@ -37,7 +51,11 @@ data class ChatMessage(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(navController: NavController) {
-    // Example messages
+
+    // Mutable state for messages (so we can add new ones)
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+
+    // Example initial messages
     val initialMessages = listOf(
         ChatMessage(
             text = "Hi, good to see you! We're starting work on a presentation for a new product today, right?",
@@ -45,33 +63,9 @@ fun ChatScreen(navController: NavController) {
             userName = "Katy",
             avatar = R.drawable.man,
             time = "8:36 PM"
-        ),
-        ChatMessage(
-            text = "Yes, that's right. Let's discuss the main points and structure of the presentation.",
-            isUser = false,
-            userName = "Katy",
-            avatar = R.drawable.man,
-            time = "8:38 PM"
-        ),
-        ChatMessage(
-            isUser = true,
-            userName = "You",
-            avatar = R.drawable.man,
-            time = "8:40 PM",
-            isVoice = true,
-            voiceDuration = "1:04"
-        ),
-        ChatMessage(
-            text = "Okay, then let's divide the presentation into a few main sections: introduction, product description, features and benefits, use cases, and conclusion.",
-            isUser = false,
-            userName = "Katy",
-            avatar = R.drawable.man,
-            time = "8:42 PM"
         )
     )
-
-    // Mutable state for messages (so we can add new ones)
-    val messages = remember { mutableStateListOf<ChatMessage>().apply { addAll(initialMessages) } }
+    if (messages.isEmpty()) messages.addAll(initialMessages)
 
     // State for user text input
     var userInput by remember { mutableStateOf(TextFieldValue("")) }
@@ -80,13 +74,71 @@ fun ChatScreen(navController: NavController) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
+    // Hold a reference to the WebSocket so that we can send messages later.
+    val webSocketRef = remember { mutableStateOf<WebSocket?>(null) }
+
+    // Create and manage WebSocket connection
+    DisposableEffect(Unit) {
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url("ws://localhost:8000/api/CharacterChat/")
+            .build()
+        val webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d("WebSocket", "Connection opened")
+                // Optionally, you can send a welcome message here
+                // webSocket.send("Hello from Android!")
+            }
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d("WebSocket", "Received text: $text")
+
+                try{
+                    val jsonParser = JsonParser()
+                    val jsonObject = jsonParser.parse(text).asJsonObject
+
+                    // Get the "message" object
+                    val messageObj = jsonObject.getAsJsonObject("message")
+                    // Directly retrieve the Agentmessage string
+                    val content = messageObj.get("Agentmessage").asString
+                    val currentTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+
+                    Handler(Looper.getMainLooper()).post {
+                        messages.add(
+                            ChatMessage(
+                                text = content,
+                                isUser = false,
+                                userName = "Server",
+                                avatar = R.drawable.man,
+                                time = currentTime
+                            )
+                        )
+                    }
+                }catch (e: JSONException) {
+                    e.printStackTrace()
+                    // Optionally, handle parsing errors here
+                }
+
+            }
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d("WebSocket", "Closing: $code / $reason")
+            }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e("WebSocket", "Error: ${t.message}")
+            }
+        })
+        webSocketRef.value = webSocket
+        onDispose {
+            webSocket.close(1000, "ChatScreen disposed")
+        }
+    }
+
     // Main container with gradient background
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color.Black, Color(0xFF1E1E1E)) // black to dark gray
+                    listOf(Color.Black, Color(0xFF1E1E1E))
                 )
             )
     ) {
@@ -144,6 +196,7 @@ fun ChatScreen(navController: NavController) {
                 onSendClick = {
                     val text = userInput.text
                     if (text.isNotEmpty()) {
+                        // Add the message to UI list
                         messages.add(
                             ChatMessage(
                                 text = text,
@@ -153,6 +206,9 @@ fun ChatScreen(navController: NavController) {
                                 time = "8:45 PM" // or get current time
                             )
                         )
+                        // Send the message to the backend via WebSocket
+                        val jsonMessage = """{"message": "${userInput.text}"}"""
+                        webSocketRef.value?.send(jsonMessage)
                         userInput = TextFieldValue("")
 
                         // Scroll to the newest message
@@ -172,7 +228,6 @@ fun ChatScreen(navController: NavController) {
 // Renders each chat message (bubble + avatar + timestamp)
 @Composable
 fun ChatBubble(message: ChatMessage) {
-    // Align bubble left (other user) or right (you)
     val horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start
 
     Column(
@@ -181,9 +236,7 @@ fun ChatBubble(message: ChatMessage) {
             .padding(vertical = 4.dp),
         horizontalAlignment = horizontalAlignment
     ) {
-        // Show avatar on left if not user, on right if user
         if (!message.isUser) {
-            // Other user bubble
             Row(verticalAlignment = Alignment.Bottom) {
                 Icon(
                     painter = painterResource(id = message.avatar),
@@ -197,7 +250,6 @@ fun ChatBubble(message: ChatMessage) {
                 BubbleContent(message)
             }
         } else {
-            // Current user bubble
             Row(verticalAlignment = Alignment.Bottom) {
                 Spacer(modifier = Modifier.weight(1f))
                 BubbleContent(message)
@@ -212,8 +264,6 @@ fun ChatBubble(message: ChatMessage) {
                 )
             }
         }
-
-        // Timestamp
         Box(modifier = Modifier.padding(horizontal = 48.dp, vertical = 2.dp)) {
             Text(
                 text = message.time,
@@ -228,7 +278,6 @@ fun ChatBubble(message: ChatMessage) {
 @Composable
 fun BubbleContent(message: ChatMessage) {
     val bubbleColor = if (message.isUser) Color(0xFF4CAF50) else Color(0xFF3A3A3A)
-
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
@@ -250,7 +299,6 @@ fun BubbleContent(message: ChatMessage) {
 @Composable
 fun VoiceMessageBubble(duration: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // Play icon
         Icon(
             painter = painterResource(id = R.drawable.voice),
             contentDescription = "Play Voice",
@@ -258,7 +306,6 @@ fun VoiceMessageBubble(duration: String) {
             modifier = Modifier.size(28.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
-        // Simple waveform placeholder
         Box(
             modifier = Modifier
                 .width(100.dp)
@@ -266,7 +313,6 @@ fun VoiceMessageBubble(duration: String) {
                 .background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
         )
         Spacer(modifier = Modifier.width(8.dp))
-        // Duration text
         Text(
             text = duration,
             color = Color.White
@@ -290,7 +336,6 @@ fun BottomBar(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Mic icon
         IconButton(onClick = onMicClick) {
             Icon(
                 painter = painterResource(id = R.drawable.voice),
@@ -298,8 +343,6 @@ fun BottomBar(
                 tint = Color.White
             )
         }
-
-        // Text field
         TextField(
             value = userInput,
             onValueChange = onInputChange,
@@ -309,17 +352,12 @@ fun BottomBar(
                 .padding(horizontal = 8.dp),
             shape = RoundedCornerShape(20.dp),
             colors = TextFieldDefaults.textFieldColors(
-//                textColor = Color.White,
-                containerColor = Color(0xFF2C2C2C), // A dark container background
+                containerColor = Color(0xFF2C2C2C),
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent,
-//                placeholderColor = Color.LightGray
             )
         )
-
-
-        // Send icon
         IconButton(onClick = onSendClick) {
             Icon(
                 imageVector = Icons.Default.Send,

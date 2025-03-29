@@ -3,7 +3,6 @@ package com.example.neuroed
 import android.util.Patterns
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-//import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -12,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,14 +21,9 @@ import androidx.compose.foundation.layout.padding
 //import androidx.compose.foundation.layout.scale
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-//import androidx.compose.foundation.layout.verticalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,9 +68,14 @@ import com.example.neuroed.viewmodel.PhoneNumberEmailVerificationViewModelFactor
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.NumberParseException
 import kotlinx.coroutines.launch
+// Import Material icons.
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Warning
 
-// Helper function to validate the input.
-fun isInputValid(input: String): Boolean {
+// Renamed helper function to validate the input.
+fun checkUserInputValidity(input: String): Boolean {
     return if (input.contains("@")) {
         Patterns.EMAIL_ADDRESS.matcher(input).matches()
     } else {
@@ -84,8 +83,8 @@ fun isInputValid(input: String): Boolean {
     }
 }
 
-// Helper function to format phone numbers into E.164 format (default region: IN).
-fun formatPhoneNumber(input: String, region: String = "IN"): String {
+// Renamed helper function to format phone numbers into E.164 format (default region: IN).
+fun formatToE164Number(input: String, region: String = "IN"): String {
     val phoneUtil = PhoneNumberUtil.getInstance()
     return try {
         val numberProto = phoneUtil.parse(input, region)
@@ -101,7 +100,8 @@ fun formatPhoneNumber(input: String, region: String = "IN"): String {
 }
 
 @Composable
-fun SignUpScreen(navController: NavController?) {
+fun SignInScreen(navController: NavController?) {
+    // Initialize API service, repository, and ViewModel.
     val apiService = RetrofitClient.apiService
     val repository = PhoneNumberRepository(apiService)
     val viewModel: PhoneNumberEmailVerificationViewModel = viewModel(
@@ -148,10 +148,10 @@ fun SignUpScreen(navController: NavController?) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            LogoImage(logoScale = logoScale)
+            AppLogo(logoScale = logoScale)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Create Your Account",
+                text = "Welcome Back",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.5.sp
@@ -160,7 +160,7 @@ fun SignUpScreen(navController: NavController?) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Join Buddy.Ai and explore a smarter future",
+                text = "Sign in to continue",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.LightGray
             )
@@ -173,21 +173,22 @@ fun SignUpScreen(navController: NavController?) {
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
             ) {
-                InputFields(
+                CredentialInputFields(
                     input = emailOrPhoneInput,
                     onInputChange = { emailOrPhoneInput = it },
                     showError = submitted
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
-            SignupButton(
+            LoginButton(
                 isLoading = isLoading,
+                buttonText = "Sign In",
                 onClick = {
                     submitted = true
-                    if (isInputValid(emailOrPhoneInput)) {
+                    if (checkUserInputValidity(emailOrPhoneInput)) {
                         // Format phone number if needed.
                         val formattedInput = if (!emailOrPhoneInput.contains("@") && !emailOrPhoneInput.startsWith("+")) {
-                            formatPhoneNumber(emailOrPhoneInput, defaultCountry)
+                            formatToE164Number(emailOrPhoneInput, defaultCountry)
                         } else {
                             emailOrPhoneInput
                         }
@@ -199,9 +200,8 @@ fun SignUpScreen(navController: NavController?) {
                             onSuccess = {
                                 println("Backend response: successfully")
                                 isLoading = false
-                                // Navigate on a successful response.
-                                // Remove '+' for URL safety.
-                                navController?.navigate("verification/${formattedInput.replace("+", "")}")
+                                // Navigate on a successful response (update the route as needed).
+                                navController?.navigate("home")
                             },
                             onError = { error ->
                                 println("Backend error: $error")
@@ -215,21 +215,20 @@ fun SignUpScreen(navController: NavController?) {
                 }
             )
             Spacer(modifier = Modifier.height(16.dp))
-            SocialLoginDivider()
+            DividerForSocialLogins()
             Spacer(modifier = Modifier.height(16.dp))
-            SignUpSocial()
+            SocialLoginActionButton(
+                buttonText = "Sign In with Google",
+                onClick = { /* Handle Google sign in */ }
+            )
             Spacer(modifier = Modifier.height(24.dp))
-            LoginText { navController?.navigate("login") }
-            Spacer(modifier = Modifier.height(16.dp))
-            TermsAndConditionsText()
-            Spacer(modifier = Modifier.height(8.dp))
-            PrivacyPolicyText()
+            NavigateToSignUpText { navController?.navigate("signup") }
         }
     }
 }
 
 @Composable
-fun LogoImage(logoScale: Float) {
+fun AppLogo(logoScale: Float) {
     val textGradient = Brush.linearGradient(
         colors = listOf(Color(0xFFBB86FC), Color(0xFF03DAC5))
     )
@@ -251,7 +250,7 @@ fun LogoImage(logoScale: Float) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boolean) {
+fun CredentialInputFields(input: String, onInputChange: (String) -> Unit, showError: Boolean) {
     val errorMessage = when {
         input.isEmpty() && showError -> "Please enter your email or phone"
         input.contains("@") && !Patterns.EMAIL_ADDRESS.matcher(input).matches() && showError -> "Please enter a valid email"
@@ -259,9 +258,9 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
         else -> ""
     }
     val leadingIcon = if (input.isNotEmpty() && input.all { it.isDigit() }) {
-        Icons.Default.Phone
+        Icons.Filled.Phone
     } else {
-        Icons.Default.Email
+        Icons.Filled.Email
     }
     val iconDescription = if (input.isNotEmpty() && input.all { it.isDigit() }) "Phone Icon" else "Email Icon"
 
@@ -278,7 +277,7 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
             modifier = Modifier.fillMaxWidth(),
             isError = errorMessage.isNotEmpty(),
             leadingIcon = {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = leadingIcon,
                     contentDescription = iconDescription,
                     tint = Color.LightGray
@@ -301,8 +300,8 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                androidx.compose.material3.Icon(
-                    imageVector = Icons.Default.Warning,
+                Icon(
+                    imageVector = Icons.Filled.Warning,
                     contentDescription = "Error Icon",
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(16.dp)
@@ -319,7 +318,7 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
 }
 
 @Composable
-fun SignupButton(isLoading: Boolean, onClick: () -> Unit) {
+fun LoginButton(isLoading: Boolean, buttonText: String, onClick: () -> Unit) {
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.95f else 1f,
@@ -333,7 +332,7 @@ fun SignupButton(isLoading: Boolean, onClick: () -> Unit) {
             .scale(scale)
             .clickable(
                 onClick = onClick,
-                onClickLabel = "Sign Up",
+                onClickLabel = buttonText,
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ),
@@ -347,7 +346,7 @@ fun SignupButton(isLoading: Boolean, onClick: () -> Unit) {
             )
         } else {
             Text(
-                text = "Sign Up",
+                text = buttonText,
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White
             )
@@ -356,7 +355,7 @@ fun SignupButton(isLoading: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun SocialLoginDivider() {
+fun DividerForSocialLogins() {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -367,7 +366,7 @@ fun SocialLoginDivider() {
             thickness = 1.dp
         )
         Text(
-            text = "  Or sign up with  ",
+            text = "  Or sign in with  ",
             style = MaterialTheme.typography.bodyMedium,
             color = Color.LightGray
         )
@@ -380,9 +379,9 @@ fun SocialLoginDivider() {
 }
 
 @Composable
-fun SignUpSocial() {
+fun SocialLoginActionButton(buttonText: String, onClick: () -> Unit) {
     Button(
-        onClick = { /* Handle Google sign up */ },
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
@@ -393,7 +392,7 @@ fun SignUpSocial() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 painter = painterResource(id = R.drawable.google), // Ensure this resource exists.
                 contentDescription = "Google Icon",
                 tint = Color.Unspecified,
@@ -401,7 +400,7 @@ fun SignUpSocial() {
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Sign Up with Google",
+                text = buttonText,
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.Black
             )
@@ -410,14 +409,14 @@ fun SignUpSocial() {
 }
 
 @Composable
-fun LoginText(onClick: () -> Unit) {
+fun NavigateToSignUpText(onClick: () -> Unit) {
     var clicked by remember { mutableStateOf(false) }
     val textColor by animateColorAsState(
         targetValue = if (clicked) Color.White else Color.LightGray,
         animationSpec = tween(300)
     )
     Text(
-        text = "Already have an account? Login",
+        text = "Don't have an account? Sign Up",
         style = MaterialTheme.typography.bodyMedium.copy(
             textDecoration = TextDecoration.Underline
         ),
@@ -428,39 +427,5 @@ fun LoginText(onClick: () -> Unit) {
                 clicked = true
                 onClick()
             }
-    )
-}
-
-@Composable
-fun TermsAndConditionsText() {
-    var clicked by remember { mutableStateOf(false) }
-    val textColor by animateColorAsState(
-        targetValue = if (clicked) Color.White else Color.Gray,
-        animationSpec = tween(300)
-    )
-    Text(
-        text = "By signing up, you agree to our Terms & Conditions",
-        style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.Underline),
-        color = textColor,
-        modifier = Modifier
-            .padding(8.dp)
-            .clickable { clicked = !clicked }
-    )
-}
-
-@Composable
-fun PrivacyPolicyText() {
-    var clicked by remember { mutableStateOf(false) }
-    val textColor by animateColorAsState(
-        targetValue = if (clicked) Color.White else Color.Gray,
-        animationSpec = tween(300)
-    )
-    Text(
-        text = "Privacy Policy",
-        style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.Underline),
-        color = textColor,
-        modifier = Modifier
-            .padding(8.dp)
-            .clickable { clicked = !clicked }
     )
 }

@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.neuroed"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.neuroed"
@@ -59,6 +59,26 @@ dependencies {
     implementation(libs.androidx.material3)
     // Vico dependencies
 
+    implementation(platform(libs.okhttp.bom))
+
+    // define any required OkHttp artifacts without version
+    implementation(libs.okhttp)
+    implementation(libs.logging.interceptor)
+
+//    ==============================================
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
+
+    implementation (libs.mpandroidchart)
+//    implementation ("com.github.PhilJay:MPAndroidChart:3.1.0")
+
+//    implementation (libs.material3)
+    implementation (libs.googlecode.libphonenumber)
+
+//    ==================
+    implementation (libs.androidx.ui.text.google.fonts)
+
+
 
 
 
@@ -77,6 +97,10 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.runner)
     implementation(libs.androidx.espresso.core)
+    implementation(libs.androidx.media3.common.ktx)
+    implementation(libs.vision.internal.vkp)
+    implementation(libs.androidx.runtime.livedata)
+    implementation(libs.places)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

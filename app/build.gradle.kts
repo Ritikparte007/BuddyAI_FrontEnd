@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -65,6 +66,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.logging.interceptor)
 
+//    ========================================google flow
+    implementation (libs.accompanist.flowlayout)
+
 //    ==============================================
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
@@ -77,6 +81,37 @@ dependencies {
 
 //    ==================
     implementation (libs.androidx.ui.text.google.fonts)
+// image loading
+    implementation(libs.coil.compose.v222)
+
+
+    // Import the BoM for the Firebase platform
+    implementation(platform(libs.firebase.bom))
+
+    // Add the dependency for the Firebase Authentication library
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation(libs.firebase.auth)
+
+    // Also add the dependencies for the Credential Manager libraries and specify their versions
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
+    // Firebase Authentication
+    implementation (libs.google.firebase.auth)
+    // Google Sign-In
+    implementation (libs.play.services.auth)
+
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+
+    implementation (libs.accompanist.permissions.v0313beta)
+
+
+    implementation (libs.google.accompanist.systemuicontroller)
+
+    implementation(libs.client.sdk)
 
 
 
@@ -101,6 +136,7 @@ dependencies {
     implementation(libs.vision.internal.vkp)
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.places)
+    implementation(libs.play.services.auth.api.phone)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

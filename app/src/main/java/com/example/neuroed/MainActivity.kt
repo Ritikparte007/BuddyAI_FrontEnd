@@ -1,25 +1,30 @@
 package com.example.neuroed
 
+
+import GetDateOfBirthScreen
 import PlaygroundScreen
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.speech.tts.TextToSpeech
-import android.speech.tts.Voice
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.annotation.RequiresApi
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -31,8 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -40,136 +44,173 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.neuroed.model.UserAppVisitData
 import com.example.neuroed.network.RetrofitClient
 import com.example.neuroed.repository.SubjectSyllabusGetRepository
-import com.example.neuroed.repository.UservisitRepository
 import com.example.neuroed.repository.TestNotificationModelPredicationRepository
+import com.example.neuroed.repository.UservisitRepository
 import com.example.neuroed.viewmodel.TestNotificationViewModel
 import com.example.neuroed.viewmodel.TestNotificationViewModelFactory
 import com.example.neuroed.viewmodel.UservisitdataViewModelFactory
 import com.example.neuroed.viewmodel.UservisitdataViewmodel
-import com.example.neuroed.model.UserAppVisitData
-import kotlinx.coroutines.delay
-import java.util.Locale
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import java.time.LocalDate
 
-class MainActivity : ComponentActivity() {
-    private val RECORD_AUDIO_REQUEST_CODE = 101
-    private lateinit var tts: TextToSpeech
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
 
-        tts = TextToSpeech(this, TextToSpeech.OnInitListener { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val result = tts.setLanguage(Locale.US)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e("TTS", "Language not supported")
-                } else {
-                    customizeVoice()
-                    speak(
-                        "Hello, I'm your personal assistant. How can I help you today? " +
-                                "I’m here to make your day a little easier by assisting you with a wide range of tasks, " +
-                                "from managing your schedule and setting reminders to answering your questions and providing useful information. " +
-                                "My design is focused on understanding your needs and preferences, which means I can learn from our interactions " +
-                                "to offer more personalized support over time"
-                    )
-                }
-            } else {
-                Log.e("TTS", "Initialization failed")
-            }
-        }, "com.google.android.tts") // Specifying the Google TTS engine.
+// ViewModel to hold authentication state.
+class AuthViewModel : ViewModel() {
+    var isUserSignedUp by mutableStateOf(false)
+        private set
 
-        // Create the notification channel (only required once).
-        NotificationHelper.createLockScreenNotificationChannel(this)
-        // Request notification permission on Android 13+.
-        NotificationHelper.requestNotificationPermission(this)
-        // Optionally, show a test notification.
-        NotificationHelper.showLockScreenNotification(
-            this,
-            title = "Lock Screen Notification",
-            message = "This notification will appear on the lock screen."
-        )
-
-        // Request RECORD_AUDIO permission if not already granted.
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                RECORD_AUDIO_REQUEST_CODE
-            )
-        }
-        setContent {
-            NeuroEdApp()
-        }
-    }
-
-    // Customize the TTS voice: adjust pitch, speech rate, and select a preferred voice.
-    private fun customizeVoice() {
-        tts.setPitch(1.0f)
-        tts.setSpeechRate(0.9f)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            val voices: Set<Voice> = tts.voices
-            for (voice in voices) {
-                if (voice.locale == Locale.US && voice.name.contains("google", ignoreCase = true)) {
-                    tts.voice = voice
-                    break
-                }
-            }
-        }
-    }
-
-    // Helper method to speak text using TTS.
-    private fun speak(text: String) {
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
-    }
-
-    override fun onDestroy() {
-        if (::tts.isInitialized) {
-            tts.stop()
-            tts.shutdown()
-        }
-        super.onDestroy()
+    fun markUserSignedUp() {
+        isUserSignedUp = true
     }
 }
 
+class MainActivity : ComponentActivity() {
+
+
+    private val authViewModel: AuthViewModel by viewModels()
+    private val azureSubscriptionKey = "YOUR_AZURE_SUBSCRIPTION_KEY" // Replace with your actual key
+    private val azureServiceRegion = "YOUR_AZURE_REGION"
+
+    private lateinit var firebaseAuth: FirebaseAuth
+    private lateinit var googleSignInClient: GoogleSignInClient
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Initialize FirebaseAuth
+        firebaseAuth = FirebaseAuth.getInstance()
+
+        // Configure Google Sign-In with your web client ID
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(getString(R.string.default_web_client_id)) // Ensure this string exists in res/values/strings.xml
+            .requestEmail()
+            .build()
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+
+        // Create an Activity Result Launcher for Google Sign-In
+        val googleSignInLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                try {
+                    val account = task.getResult(Exception::class.java) as GoogleSignInAccount
+                    firebaseAuthWithGoogle(account)
+
+
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Google sign-in failed", e)
+                }
+            }
+        }
+        setContent {
+            NeuroEdApp(onGoogleSignUpClick = {
+                val signInIntent = googleSignInClient.signInIntent
+                googleSignInLauncher.launch(signInIntent)
+            },
+                authViewModel = authViewModel
+            )
+        }
+    }
+
+    private fun firebaseAuthWithGoogle(account: GoogleSignInAccount) {
+        val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+        firebaseAuth.signInWithCredential(credential)
+            .addOnCompleteListener(this) { task ->
+                if (task.isSuccessful) {
+                    // Mark the user as signed up in SharedPreferences.
+                    val sharedPrefs = getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit().putBoolean("isUserSignedUp", true).apply()
+                    Log.d("MainActivity", "Firebase authentication successful")
+
+                    // Inform the ViewModel (if used) that the user is now signed up.
+                    authViewModel.markUserSignedUp()
+
+                    // Retrieve and log details from the GoogleSignInAccount.
+                    val displayName = account.displayName ?: "No Display Name"
+                    val email = account.email ?: "No Email"
+                    val photoUrl = account.photoUrl?.toString() ?: "No Photo URL"
+                    Log.d("MainActivity", "Google Account Info - Name: $displayName, Email: $email, Photo URL: $photoUrl")
+
+                    // Retrieve additional data from FirebaseUser.
+                    val firebaseUser = firebaseAuth.currentUser
+                    firebaseUser?.let { user ->
+                        Log.d("MainActivity", "Firebase User UID: ${user.uid}")
+                        Log.d("MainActivity", "User Providers: ${user.providerData.joinToString { it.providerId }}")
+                        Log.d("MainActivity", "Account Created At: ${user.metadata?.creationTimestamp}")
+                        Log.d("MainActivity", "Last Sign-In At: ${user.metadata?.lastSignInTimestamp}")
+
+                        // Retrieve the phone number if available.
+                        val phoneNumber = user.phoneNumber ?: "No Phone Number"
+                        Log.d("MainActivity", "User Phone Number: $phoneNumber")
+                    }
+
+                    // You can now pass this user data to your UI or store it in your database.
+                    // For example, you could navigate to the home screen and display user details.
+                } else {
+                    Log.e("MainActivity", "Firebase authentication failed", task.exception)
+                }
+            }
+    }
+
+
+}
+
 @Composable
-fun NeuroEdApp() {
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        val navController = rememberNavController()
-        val context = LocalContext.current
-        var hasNavigated by remember { mutableStateOf(false) }
+fun NeuroEdApp(onGoogleSignUpClick: () -> Unit,
+               authViewModel: AuthViewModel = viewModel()) {
 
 
-        LaunchedEffect(Unit) {
-            delay(1000)  // Wait for 1 second
-            if (!hasNavigated) {
-                hasNavigated = true  // Ensure this block runs only once
+        MaterialTheme(colorScheme = darkColorScheme()) {
+            val navController = rememberNavController()
+            val context = LocalContext.current
+
+            // Initial check on app start: navigate based on saved sign-up state.
+            LaunchedEffect(Unit) {
                 val sharedPrefs = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
                 val isUserSignedUp = sharedPrefs.getBoolean("isUserSignedUp", false)
                 if (isUserSignedUp) {
-                    // Navigate to home screen and clear the back stack.
                     navController.navigate("home") {
                         popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         launchSingleTop = true
                     }
                 } else {
-                    // Navigate to sign-up screen and clear the back stack.
+                    navController.navigate("SignUpScreen") {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            }
+
+            // Observe the authentication state from the ViewModel.
+            LaunchedEffect(authViewModel.isUserSignedUp) {
+                if (authViewModel.isUserSignedUp) {
                     navController.navigate("home") {
                         popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         launchSingleTop = true
                     }
                 }
             }
-        }
 
 
         NavHost(navController = navController, startDestination = "splash") {
             composable("splash") { SplashScreen(navController) }
             composable("home") { HomeScreen(navController) }
-            composable("SignUpScreen") { SignUpScreen(navController) }
+            composable("SignUpScreen") {
+                // Pass the callback down to the sign-up screen.
+                SignUpScreen(navController = navController, onGoogleSignUpClick = onGoogleSignUpClick)
+            }
             composable("ChatScreen") { ChatScreen(navController) }
+            composable("AgentCreateScreen"){CreateAgentScreen(navController)}
             composable("AutoOpenCameraScreen") {
                 CameraScreen(navController, onEnableCameraClick = {})
             }
@@ -289,6 +330,21 @@ fun NeuroEdApp() {
             composable("MeditationGenerateScreen") {MeditationGenerateScreen(navController)  }
             composable("liveSessionScreen"){liveSessionScreen(navController)}
             composable("PlaygroundScreen"){PlaygroundScreen(navController)}
+            composable("UserInfoScreen") { UserInfoScreen(navController) }
+            composable("GetDateOfBirthScreen") {GetDateOfBirthScreen(navController)  }
+            composable("SelectionScreen") { SelectionScreen(navController)  }
+
+            composable(
+                route = "agent_processing_screen"
+            ) {
+                // Call your AgentProcessingScreen composable here
+                AgentProcessingScreen(
+                    // Provide the required onStopClick lambda
+                    onStopClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
 
             composable("verification/{phoneNumber}") { backStackEntry ->
                 val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""

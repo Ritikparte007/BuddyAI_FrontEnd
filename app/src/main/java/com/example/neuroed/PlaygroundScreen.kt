@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateColorAsState
@@ -115,7 +116,22 @@ import com.example.neuroed.viewmodel.SubjectSyllabusHeadingTopicViewModel
 import com.example.neuroed.viewmodel.SubjectSyllabusHeadingTopicViewModelFactory
 import com.example.neuroed.viewmodel.SubjectSyllabusHeadingViewModel
 import com.example.neuroed.viewmodel.SubjectSyllabusHeadingViewModelFactory
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import org.json.JSONObject
+import com.google.accompanist.permissions.rememberPermissionState
+import android.Manifest
+import android.content.Intent
+import android.media.AudioManager
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import com.google.accompanist.permissions.shouldShowRationale
+import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import kotlinx.coroutines.delay
+import android.content.Context
 
 
 // --------------------
@@ -528,51 +544,52 @@ fun captureWebViewScreenshot(webView: WebView): Bitmap? {
 
 
 
+
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun CameraPreview(modifier: Modifier = Modifier.fillMaxSize()) {
+fun CameraPreview(modifier: Modifier = Modifier,  cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
-            // Create and configure the PreviewView.
-            val previewView = androidx.camera.view.PreviewView(ctx).apply {
-                scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
-            }
+    // Accompanist Permissions for handling Camera permission
+    val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
 
-            // Get the camera provider.
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-            cameraProviderFuture.addListener({
-                try {
+    LaunchedEffect(Unit) {
+        if (!cameraPermissionState.status.isGranted) {
+            cameraPermissionState.launchPermissionRequest()
+        }
+    }
+
+    if (cameraPermissionState.status.isGranted) {
+        AndroidView(
+            modifier = modifier.fillMaxSize(),
+            factory = { ctx ->
+                val previewView = PreviewView(ctx)
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+
+                cameraProviderFuture.addListener({
                     val cameraProvider = cameraProviderFuture.get()
-
-                    // Create the Preview use case.
-                    val preview = Preview.Builder().build()
-
-                    // Post the SurfaceProvider setup after layout.
-                    previewView.post {
-                        preview.setSurfaceProvider(previewView.surfaceProvider)
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                    // Select the back camera.
-                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                    try {
+                        cameraProvider.unbindAll()
+                        cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                    } catch (exc: Exception) {
+                        Log.e("CameraPreview", "Camera binding failed", exc)
+                    }
+                }, ContextCompat.getMainExecutor(ctx))
 
-                    // Unbind all use cases before binding the new one.
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner, cameraSelector, preview
-                    )
-                } catch (exc: Exception) {
-                    Log.e("CameraPreview", "Failed to bind camera use cases", exc)
-                }
-            }, ContextCompat.getMainExecutor(ctx))
-
-            previewView
+                previewView
+            }
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Camera permission is required to use this feature.")
         }
-    )
+    }
 }
-
 
 
 
@@ -948,30 +965,30 @@ fun CascadingSubjectUnitTopicList(
 }
 
 
-
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatInputBar(
     webSocketRef: MutableState<WebSocket?>,
     onModeToggle: () -> Unit
 ) {
     var message by remember { mutableStateOf(TextFieldValue("")) }
-    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
+    // Visual state for mic button (true = ON, false = OFF)
+    var isMicOn by remember { mutableStateOf(false) }
 
     var isVisible by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableStateOf(0f) }
-
+    val context = LocalContext.current
 
     // State for the selected file URI (if any)
     var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Create a file picker launcher that accepts all file types.
+    // File picker launcher for selecting all file types
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        // When a file is picked, store its URI.
         uri?.let { selectedFileUri = it }
     }
 
@@ -984,19 +1001,102 @@ fun ChatInputBar(
     val keyboardHeight = WindowInsets.ime.getBottom(density)
     val isKeyboardOpen = keyboardHeight > 0
 
-    // Control whether the modal bottom sheet is shown.
+    // States for modal bottom sheet and dialog
     var showSubjectSheet by remember { mutableStateOf(false) }
-
-    // Control whether the Learn option dialog is shown.
     var showDialog by remember { mutableStateOf(false) }
-    // State for the current learning option (displayed in the text below the icon)
     var currentLearnOption by remember { mutableStateOf("Learn") }
 
+    // Load icon resources
     val micOn = ImageVector.vectorResource(id = R.drawable.baseline_mic_24)
     val micOff = ImageVector.vectorResource(id = R.drawable.baseline_mic_off_24)
-    val Camera = ImageVector.vectorResource(id = R.drawable.baseline_photo_camera_24)
-    val Book = ImageVector.vectorResource(id = R.drawable.baseline_book_24)
+    val camera = ImageVector.vectorResource(id = R.drawable.baseline_photo_camera_24)
+    val book = ImageVector.vectorResource(id = R.drawable.baseline_book_24)
     val file = ImageVector.vectorResource(id = R.drawable.baseline_attach_file_24)
+
+    val recordAudioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+
+    // Create recognizer for regular recording
+    val regularSpeechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
+
+    // Regular speech input for when user explicitly uses mic
+    var regularSpeechInput by remember { mutableStateOf("") }
+
+    // Function for regular recording with normal feedback
+    fun startRegularListening(recognitionListener: RecognitionListener) {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+        regularSpeechRecognizer.setRecognitionListener(recognitionListener)
+        regularSpeechRecognizer.startListening(intent)
+    }
+
+    // Listener for regular/visible recording when mic is ON
+    val regularListener = remember {
+        object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let {
+                    regularSpeechInput = it[0]
+                    // Update message text field when mic is ON
+                    message = TextFieldValue(it[0])
+                }
+                if (isMicOn) startRegularListening(this)
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let {
+                    regularSpeechInput = it[0]
+                    // Update message text field when mic is ON
+                    message = TextFieldValue(it[0])
+                }
+            }
+
+            override fun onError(error: Int) {
+                if (isMicOn && error != SpeechRecognizer.ERROR_NO_MATCH)
+                    startRegularListening(this)
+            }
+
+            override fun onEndOfSpeech() {
+                if (isMicOn) startRegularListening(this)
+            }
+
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+    }
+
+    // Request permission and start recording only when mic is turned on.
+    LaunchedEffect(isMicOn) {
+        if (isMicOn) {
+            if (recordAudioPermission.status.isGranted) {
+                startRegularListening(regularListener)
+            } else {
+                recordAudioPermission.launchPermissionRequest()
+                isMicOn = false
+            }
+        } else {
+            // Stop regular recording when mic is off.
+            regularSpeechRecognizer.stopListening()
+        }
+    }
+
+    // When keyboard opens, force mic OFF and clear any active recording.
+    LaunchedEffect(isKeyboardOpen) {
+        if (isKeyboardOpen) {
+            isMicOn = false
+            regularSpeechRecognizer.stopListening()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            // Cleanup resources
+            regularSpeechRecognizer.destroy()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1008,7 +1108,8 @@ fun ChatInputBar(
             onValueChange = { message = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 40.dp)
+                .heightIn(min = 40.dp, max = 120.dp)
+                .verticalScroll(rememberScrollState())
                 .focusRequester(focusRequester)
                 .background(
                     brush = Brush.horizontalGradient(
@@ -1019,8 +1120,6 @@ fun ChatInputBar(
                     ),
                     shape = RoundedCornerShape(20.dp)
                 ),
-            // If a file is selected, show a circular indicator as the leading icon.
-
             leadingIcon = selectedFileUri?.let {
                 {
                     BadgedBox(
@@ -1090,11 +1189,16 @@ fun ChatInputBar(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Button with Label for Mic On/Off
+                // Mic On/Off Button - Always show according to isMicOn state
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    var isMicOn by remember { mutableStateOf(true) }
                     IconButton(
-                        onClick = { isMicOn = !isMicOn },
+                        onClick = {
+                            // Toggle mic state when clicked
+                            isMicOn = !isMicOn
+                            if (!recordAudioPermission.status.isGranted) {
+                                recordAudioPermission.launchPermissionRequest()
+                            }
+                        },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
@@ -1111,7 +1215,7 @@ fun ChatInputBar(
                     )
                 }
 
-                // Play Button with Label (opens the Learn options dialog)
+                // Learn Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { showDialog = true },
@@ -1131,7 +1235,7 @@ fun ChatInputBar(
                     )
                 }
 
-                // File Button with Label (opens the file picker)
+                // File Selection Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { filePickerLauncher.launch("*/*") },
@@ -1151,14 +1255,14 @@ fun ChatInputBar(
                     )
                 }
 
-                // Toggle Camera/Animation Button with Label
+                // Camera Toggle Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { onModeToggle() },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Camera,
+                            imageVector = camera,
                             contentDescription = "Toggle Camera/Animation",
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
@@ -1171,14 +1275,14 @@ fun ChatInputBar(
                     )
                 }
 
-                // Select Subject/Unit/Topic Button with Label
+                // Subject Selection Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { showSubjectSheet = true },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Book,
+                            imageVector = book,
                             contentDescription = "Select Subject/Unit/Topic",
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
@@ -1194,7 +1298,6 @@ fun ChatInputBar(
         }
     }
 
-    // Show modal bottom sheet for subjects
     if (showSubjectSheet) {
         ModalBottomSheet(
             onDismissRequest = { showSubjectSheet = false }
@@ -1202,14 +1305,12 @@ fun ChatInputBar(
             CascadingSubjectUnitTopicList(
                 webSocketRef = webSocketRef,
                 onSelection = { selections, _ ->
-                    // Handle the selection here.
                     showSubjectSheet = false
                 }
             )
         }
     }
 
-    // Show the Learn option popup when showDialog is true.
     if (showDialog) {
         LearnOptionPopup(
             onDismiss = { showDialog = false },
@@ -1221,7 +1322,6 @@ fun ChatInputBar(
         )
     }
 }
-
 
 
 
@@ -1304,4 +1404,77 @@ fun LearnOptionPopup(
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp)
     )
+}
+
+
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun SpeechToTextConverter(
+    onTextChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var isListening by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Request microphone permission
+    val permissionState = rememberPermissionState(permission = Manifest.permission.RECORD_AUDIO)
+
+    // Speech recognizer setup
+    val speechRecognizer = remember {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) {
+            SpeechRecognizer.createSpeechRecognizer(context)
+        } else {
+            null
+        }
+    }
+
+    val listener = remember {
+        object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                isListening = true
+            }
+
+            override fun onResults(results: Bundle?) {
+                results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let {
+                    onTextChange(it[0])
+                }
+                isListening = false
+            }
+
+            override fun onError(error: Int) {
+                errorMessage = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognition match found"
+                    SpeechRecognizer.ERROR_CLIENT -> "Client side error"
+                    else -> "Error: $error"
+                }
+                isListening = false
+            }
+
+            // Other required overrides (empty implementations)
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+    }
+
+    // Cleanup on composable disposal
+    DisposableEffect(speechRecognizer) {
+        speechRecognizer?.setRecognitionListener(listener)
+        onDispose {
+            speechRecognizer?.destroy()
+        }
+    }
+
+    // Permission handling
+    LaunchedEffect(permissionState.status) {
+        if (!permissionState.status.isGranted && !permissionState.status.shouldShowRationale) {
+            permissionState.launchPermissionRequest()
+        }
+    }
+
 }

@@ -111,3 +111,23 @@ data class SubjectSyllabusHeadingTopicSubtopic(
     val  curriculum_importance: Float,
     val  error_rate:Float
 )
+
+//============= save userinfo ===================
+
+data class userinfosave(
+    val email: String,
+    val name: String,
+    val photoUrls: String
+)
+
+//================== Agent create =================
+
+data class AgentCreate(
+    val UserPrompt: String
+)
+
+data class AgentCreateResponse(
+    val response: String
+)
+
+

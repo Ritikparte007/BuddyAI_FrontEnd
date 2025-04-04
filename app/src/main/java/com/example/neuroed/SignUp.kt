@@ -1,9 +1,14 @@
 package com.example.neuroed
 
+import android.app.ActivityManager
+import android.content.Context
+import android.os.Build
+import android.provider.Settings
+import android.telephony.TelephonyManager
+import android.util.Log
 import android.util.Patterns
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-//import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -11,19 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-//import androidx.compose.foundation.layout.scale
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-//import androidx.compose.foundation.layout.verticalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -31,33 +24,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -71,11 +48,15 @@ import com.example.neuroed.network.RetrofitClient
 import com.example.neuroed.repository.PhoneNumberRepository
 import com.example.neuroed.viewmodel.PhoneNumberEmailVerificationViewModel
 import com.example.neuroed.viewmodel.PhoneNumberEmailVerificationViewModelFactory
-import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.NumberParseException
-import kotlinx.coroutines.launch
+import com.google.i18n.phonenumbers.PhoneNumberUtil
+import java.util.Locale
 
-// Helper function to validate the input.
+/**
+ * Helper function to validate if the input is a valid email or phone number.
+ * For email, it uses a regex pattern match.
+ * For phone, it checks if it contains only digits and has at least 10 characters.
+ */
 fun isInputValid(input: String): Boolean {
     return if (input.contains("@")) {
         Patterns.EMAIL_ADDRESS.matcher(input).matches()
@@ -84,7 +65,11 @@ fun isInputValid(input: String): Boolean {
     }
 }
 
-// Helper function to format phone numbers into E.164 format (default region: IN).
+/**
+ * Formats a phone number into E.164 format.
+ * Uses a default region ("IN" for India) if none is provided.
+ * If parsing or validation fails, it returns the original input.
+ */
 fun formatPhoneNumber(input: String, region: String = "IN"): String {
     val phoneUtil = PhoneNumberUtil.getInstance()
     return try {
@@ -100,38 +85,62 @@ fun formatPhoneNumber(input: String, region: String = "IN"): String {
     }
 }
 
+
+/**
+ * SignUpScreen composable displays the sign-up interface.
+ * It includes user input fields, device-related data collection,
+ * animations, and actions to validate and process the sign-up.
+ */
 @Composable
-fun SignUpScreen(navController: NavController?) {
+fun SignUpScreen(navController: NavController?, onGoogleSignUpClick: () -> Unit) {
+    // Retrieve the current context for accessing resources and system services.
+    val context = LocalContext.current
+
+    // Initialize Retrofit API service and repository for phone/email verification.
     val apiService = RetrofitClient.apiService
     val repository = PhoneNumberRepository(apiService)
+    // Obtain the ViewModel using a custom factory.
     val viewModel: PhoneNumberEmailVerificationViewModel = viewModel(
         factory = PhoneNumberEmailVerificationViewModelFactory(repository)
     )
 
-    // Fade-in animation.
+    // State for fade-in animation of the entire screen.
     val alphaAnim = remember { mutableStateOf(0f) }
     LaunchedEffect(Unit) {
         alphaAnim.value = 1f
     }
 
-    // Scale animation for the logo.
+    // Scale animation for the logo image.
     val logoScale by animateFloatAsState(
         targetValue = 1f,
         animationSpec = tween(durationMillis = 800)
     )
 
-    // Animated background gradient.
+    // Define an animated vertical gradient as the background.
     val animatedBrush = Brush.verticalGradient(
         colors = listOf(Color(0xFF121212), Color(0xFF1E1E1E))
     )
 
+    // States for user input and loading/submission status.
     var emailOrPhoneInput by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
-    // Loading state to control button progress indicator.
     var isLoading by remember { mutableStateOf(false) }
-    // Default country is "IN" (India).
-    val defaultCountry = "IN"
-    val coroutineScope = rememberCoroutineScope()
+
+    // Collect device-related data.
+    // Try to obtain the SIM country first; if not available, fall back to Locale.
+    val defaultCountry = getSimCountry(context) ?: Locale.getDefault().country
+    val deviceModel = Build.MODEL                          // e.g., "Pixel 6"
+    val manufacturer = Build.MANUFACTURER                  // e.g., "Google"
+    val language = Locale.getDefault().language             // e.g., "en"
+    val metrics = context.resources.displayMetrics         // Display metrics for screen info
+    val screenWidth = metrics.widthPixels                  // Screen width in pixels
+    val screenHeight = metrics.heightPixels                // Screen height in pixels
+    val osVersion = Build.VERSION.RELEASE                  // OS version (e.g., "10")
+    val androidId = getAndroidId(context)                  // Unique device identifier
+
+
+
+
 
     Surface(
         modifier = Modifier
@@ -148,6 +157,7 @@ fun SignUpScreen(navController: NavController?) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Display the logo with scaling animation.
             LogoImage(logoScale = logoScale)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
@@ -165,6 +175,7 @@ fun SignUpScreen(navController: NavController?) {
                 color = Color.LightGray
             )
             Spacer(modifier = Modifier.height(16.dp))
+            // Card container for input fields.
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -180,12 +191,13 @@ fun SignUpScreen(navController: NavController?) {
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
+            // Sign-up button with loading indicator.
             SignupButton(
                 isLoading = isLoading,
                 onClick = {
                     submitted = true
                     if (isInputValid(emailOrPhoneInput)) {
-                        // Format phone number if needed.
+                        // If the input is a phone number, format it using the default country.
                         val formattedInput = if (!emailOrPhoneInput.contains("@") && !emailOrPhoneInput.startsWith("+")) {
                             formatPhoneNumber(emailOrPhoneInput, defaultCountry)
                         } else {
@@ -194,19 +206,19 @@ fun SignUpScreen(navController: NavController?) {
                         println("Original input: $emailOrPhoneInput, Formatted input: $formattedInput")
                         val verificationData = PhoneNumberVerification(phoneNumberoremail = formattedInput)
                         isLoading = true
+                        // Call the API to verify the phone number or email.
                         viewModel.fetchPhoneNumberVerification(
                             verificationData,
                             onSuccess = {
                                 println("Backend response: successfully")
                                 isLoading = false
-                                // Navigate on a successful response.
-                                // Remove '+' for URL safety.
+                                // Navigate to verification screen on success.
                                 navController?.navigate("verification/${formattedInput.replace("+", "")}")
                             },
                             onError = { error ->
                                 println("Backend error: $error")
                                 isLoading = false
-                                // Optionally show an error message.
+                                // Optionally, display an error message to the user.
                             }
                         )
                     } else {
@@ -217,7 +229,7 @@ fun SignUpScreen(navController: NavController?) {
             Spacer(modifier = Modifier.height(16.dp))
             SocialLoginDivider()
             Spacer(modifier = Modifier.height(16.dp))
-            SignUpSocial()
+            SignUpSocial(onGoogleSignUpClick = onGoogleSignUpClick)
             Spacer(modifier = Modifier.height(24.dp))
             LoginText { navController?.navigate("login") }
             Spacer(modifier = Modifier.height(16.dp))
@@ -228,6 +240,9 @@ fun SignUpScreen(navController: NavController?) {
     }
 }
 
+/**
+ * Displays the logo text with a linear gradient and scaling effect.
+ */
 @Composable
 fun LogoImage(logoScale: Float) {
     val textGradient = Brush.linearGradient(
@@ -249,6 +264,10 @@ fun LogoImage(logoScale: Float) {
     )
 }
 
+/**
+ * InputFields composable displays an outlined text field for user input.
+ * It shows an appropriate leading icon (email or phone) and an error message if needed.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boolean) {
@@ -278,7 +297,7 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
             modifier = Modifier.fillMaxWidth(),
             isError = errorMessage.isNotEmpty(),
             leadingIcon = {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = leadingIcon,
                     contentDescription = iconDescription,
                     tint = Color.LightGray
@@ -292,6 +311,7 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
                 unfocusedBorderColor = Color.Gray
             )
         )
+        // Animate visibility of the error message.
         AnimatedVisibility(
             visible = errorMessage.isNotEmpty(),
             enter = fadeIn(animationSpec = tween(500)),
@@ -301,7 +321,7 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = Icons.Default.Warning,
                     contentDescription = "Error Icon",
                     tint = MaterialTheme.colorScheme.error,
@@ -318,6 +338,10 @@ fun InputFields(input: String, onInputChange: (String) -> Unit, showError: Boole
     }
 }
 
+/**
+ * SignupButton composable displays a sign-up button with a scaling effect on press.
+ * It shows a CircularProgressIndicator when the action is loading.
+ */
 @Composable
 fun SignupButton(isLoading: Boolean, onClick: () -> Unit) {
     var pressed by remember { mutableStateOf(false) }
@@ -326,35 +350,37 @@ fun SignupButton(isLoading: Boolean, onClick: () -> Unit) {
         animationSpec = tween(durationMillis = 150)
     )
     Button(
-        onClick = onClick,
+        onClick = {
+            onClick()
+            pressed = true
+        },
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .scale(scale)
-            .clickable(
-                onClick = onClick,
-                onClickLabel = "Sign Up",
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }
-            ),
+            .scale(scale),
         shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBB86FC))
+        colors = ButtonDefaults.buttonColors(containerColor = Color.White) // White background
     ) {
         if (isLoading) {
             CircularProgressIndicator(
-                color = Color.White,
+                color = Color.Black, // Changed to black for contrast on white background
                 modifier = Modifier.size(24.dp)
             )
         } else {
             Text(
                 text = "Sign Up",
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White
+                color = Color.Black // Black text for contrast
             )
         }
     }
 }
 
+
+/**
+ * SocialLoginDivider displays a horizontal divider with a label,
+ * used to separate alternative social login options.
+ */
 @Composable
 fun SocialLoginDivider() {
     Row(
@@ -379,22 +405,25 @@ fun SocialLoginDivider() {
     }
 }
 
+/**
+ * SignUpSocial displays a button to sign up using a social account (e.g., Google).
+ */
 @Composable
-fun SignUpSocial() {
+fun SignUpSocial(onGoogleSignUpClick: () -> Unit) {
     Button(
-        onClick = { /* Handle Google sign up */ },
+        onClick = onGoogleSignUpClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03DAC5))
+        colors = ButtonDefaults.buttonColors(containerColor = Color.White) // Changed to white
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            androidx.compose.material3.Icon(
-                painter = painterResource(id = R.drawable.google), // Ensure this resource exists.
+            Icon(
+                painter = painterResource(id = R.drawable.google), // Ensure this resource exists
                 contentDescription = "Google Icon",
                 tint = Color.Unspecified,
                 modifier = Modifier.size(24.dp)
@@ -403,12 +432,16 @@ fun SignUpSocial() {
             Text(
                 text = "Sign Up with Google",
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.Black
+                color = Color.Black  // Using black text for contrast
             )
         }
     }
 }
 
+
+/**
+ * LoginText displays a clickable text that navigates to the login screen.
+ */
 @Composable
 fun LoginText(onClick: () -> Unit) {
     var clicked by remember { mutableStateOf(false) }
@@ -431,6 +464,9 @@ fun LoginText(onClick: () -> Unit) {
     )
 }
 
+/**
+ * TermsAndConditionsText displays clickable text for Terms & Conditions.
+ */
 @Composable
 fun TermsAndConditionsText() {
     var clicked by remember { mutableStateOf(false) }
@@ -448,6 +484,9 @@ fun TermsAndConditionsText() {
     )
 }
 
+/**
+ * PrivacyPolicyText displays clickable text for the Privacy Policy.
+ */
 @Composable
 fun PrivacyPolicyText() {
     var clicked by remember { mutableStateOf(false) }

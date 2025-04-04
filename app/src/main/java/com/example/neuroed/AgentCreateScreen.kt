@@ -59,7 +59,7 @@ sealed class Screen(val route: String) {
 }
 
 // --- WebSocket Constants ---
-private const val WEBSOCKET_URL = "ws://your_websocket_server_here" // <-- IMPORTANT: REPLACE WITH YOUR SERVER URL
+private const val WEBSOCKET_URL = "api/AgentCreate/" // <-- IMPORTANT: REPLACE WITH YOUR SERVER URL
 private const val NORMAL_CLOSURE_STATUS = 1000
 
 // --- Screen Composable: CreateAgentScreen ---

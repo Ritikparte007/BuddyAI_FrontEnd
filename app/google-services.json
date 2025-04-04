@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "753031749448",
+    "project_id": "neuroedpr",
+    "storage_bucket": "neuroedpr.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753031749448:android:0d71e937d585967c8c1d7d",
+        "android_client_info": {
+          "package_name": "com.example.neuroed"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "753031749448-u9ahvkkv0gmgt91dit9t39o87tu5r50n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.neuroed",
+            "certificate_hash": "1e13dba9e1ee3d7d59512977751bf9467b0b6b01"
+          }
+        },
+        {
+          "client_id": "753031749448-ca8opit6o9uv41ks68aothaafodf3103.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEUeJzSrhMhnZtZMGpJGdBBxRmmraeSA0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "753031749448-ca8opit6o9uv41ks68aothaafodf3103.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

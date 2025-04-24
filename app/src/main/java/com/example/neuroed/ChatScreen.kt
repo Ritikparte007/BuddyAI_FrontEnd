@@ -3,7 +3,9 @@ package com.example.neuroed
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,20 +13,20 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -50,8 +52,9 @@ data class ChatMessage(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(navController: NavController) {
-
+fun ChatScreen(navController: NavController,
+               characterId: Int
+) {
     // Mutable state for messages (so we can add new ones)
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
@@ -74,6 +77,12 @@ fun ChatScreen(navController: NavController) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
+    // Auto-scroll whenever a message is added
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty())
+            listState.animateScrollToItem(messages.size - 1)
+    }
+
     // Hold a reference to the WebSocket so that we can send messages later.
     val webSocketRef = remember { mutableStateOf<WebSocket?>(null) }
 
@@ -86,21 +95,18 @@ fun ChatScreen(navController: NavController) {
         val webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d("WebSocket", "Connection opened")
-                // Optionally, you can send a welcome message here
-                // webSocket.send("Hello from Android!")
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 Log.d("WebSocket", "Received text: $text")
-
-                try{
+                try {
                     val jsonParser = JsonParser()
                     val jsonObject = jsonParser.parse(text).asJsonObject
 
-                    // Get the "message" object
+                    // Get the "message" object and the Agentmessage string
                     val messageObj = jsonObject.getAsJsonObject("message")
-                    // Directly retrieve the Agentmessage string
                     val content = messageObj.get("Agentmessage").asString
-                    val currentTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                    val currentTime =
+                        SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
 
                     Handler(Looper.getMainLooper()).post {
                         messages.add(
@@ -113,11 +119,9 @@ fun ChatScreen(navController: NavController) {
                             )
                         )
                     }
-                }catch (e: JSONException) {
+                } catch (e: JSONException) {
                     e.printStackTrace()
-                    // Optionally, handle parsing errors here
                 }
-
             }
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d("WebSocket", "Closing: $code / $reason")
@@ -132,27 +136,40 @@ fun ChatScreen(navController: NavController) {
         }
     }
 
-    // Main container with gradient background
+    // Main container with a solid background color (Color(0xFF1E1E1E))
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color.Black, Color(0xFF1E1E1E))
-                )
-            )
+            .background(Color(0xFF1E1E1E))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Top Bar
+            // Top AppBar using the same container color as our chat bubbles
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black),
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Contact's avatar
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable {
+                            // When the user clicks the profile (avatar), navigate to AgentInfoScreen
+                            navController.navigate("AgentInfoScreen")
+                        }
+                    ) {
+                        // Contact's avatar wrapped in a clickable
                         Icon(
                             painter = painterResource(id = R.drawable.man),
-                            contentDescription = "Avatar",
+                            contentDescription = "Profile Avatar",
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape),
@@ -161,17 +178,9 @@ fun ChatScreen(navController: NavController) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Aysha Hayes",
-                            color = Color.White,
-                            fontSize = 18.sp
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* TODO: handle notification click */ }) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.notificationbell),
-                            contentDescription = "Notifications",
-                            tint = Color.White
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -196,14 +205,14 @@ fun ChatScreen(navController: NavController) {
                 onSendClick = {
                     val text = userInput.text
                     if (text.isNotEmpty()) {
-                        // Add the message to UI list
+                        // Add the message to the UI list
                         messages.add(
                             ChatMessage(
                                 text = text,
                                 isUser = true,
                                 userName = "You",
                                 avatar = R.drawable.man,
-                                time = "8:45 PM" // or get current time
+                                time = "8:45 PM" // or use current time
                             )
                         )
                         // Send the message to the backend via WebSocket
@@ -211,14 +220,8 @@ fun ChatScreen(navController: NavController) {
                         webSocketRef.value?.send(jsonMessage)
                         userInput = TextFieldValue("")
 
-                        // Scroll to the newest message
-                        coroutineScope.launch {
-                            listState.animateScrollToItem(messages.size - 1)
-                        }
+                        // Scrolling is automatically handled by the LaunchedEffect.
                     }
-                },
-                onMicClick = {
-                    // TODO: handle voice recording
                 }
             )
         }
@@ -274,28 +277,32 @@ fun ChatBubble(message: ChatMessage) {
     }
 }
 
-// Decides whether to show text or voice bubble
+// Enhanced chat bubble using Card with clear styling and border
 @Composable
 fun BubbleContent(message: ChatMessage) {
-    val bubbleColor = if (message.isUser) Color(0xFF4CAF50) else Color(0xFF3A3A3A)
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(bubbleColor)
-            .padding(12.dp)
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
-        if (message.isVoice) {
-            VoiceMessageBubble(duration = message.voiceDuration)
-        } else {
-            Text(
-                text = message.text,
-                color = Color.White
-            )
+        Box(modifier = Modifier.padding(16.dp)) {
+            if (message.isVoice) {
+                VoiceMessageBubble(duration = message.voiceDuration)
+            } else {
+                Text(
+                    text = message.text,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 }
 
-// Example voice message UI
+// Example voice message UI remains unchanged
 @Composable
 fun VoiceMessageBubble(duration: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -320,29 +327,20 @@ fun VoiceMessageBubble(duration: String) {
     }
 }
 
-// Bottom bar with mic + input + send
+// Bottom bar with input and send button
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomBar(
     userInput: String,
     onInputChange: (String) -> Unit,
-    onSendClick: () -> Unit,
-    onMicClick: () -> Unit
+    onSendClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onMicClick) {
-            Icon(
-                painter = painterResource(id = R.drawable.voice),
-                contentDescription = "Mic",
-                tint = Color.White
-            )
-        }
         TextField(
             value = userInput,
             onValueChange = onInputChange,

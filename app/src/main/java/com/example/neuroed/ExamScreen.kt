@@ -44,28 +44,31 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.delay
 
-// Custom color definitions
-private val ModernPrimary = Color(0xFF6200EE)
-private val ModernOnPrimary = Color.White
+// Dark mode color palette
+private val DarkPrimarys = Color(0xFF6200EE)
+private val DarkOnPrimary = Color.White
 private val DarkBackground = Color(0xFF121212)
 private val DarkSurface = Color(0xFF1E1E1E)
-private val ModernError = Color(0xFFB00020)
-private val DarkSecondaryContainer = Color(0xFF2C2C2C)
-private val DarkOnSecondaryContainer = Color(0xFFF0F0F0)
+private val DarkTopBar = Color(0xFF1A1A1A)  // Dark topbar color
+private val DarkError = Color(0xFFCF6679)
+private val DarkCardBackground = Color(0xFF2C2C2C)
+private val DarkOutline = Color(0xFF444444)
+private val DarkText = Color.White
+private val DarkTextSecondary = Color(0xFFB0B0B0)
 
-// Custom dark theme wrapper
+// Dark theme wrapper
 @Composable
 fun AppTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = ModernPrimary,
-            onPrimary = ModernOnPrimary,
+            primary = DarkPrimarys,
+            onPrimary = DarkOnPrimary,
             background = DarkBackground,
             surface = DarkSurface,
-            onSurface = Color.White,
-            error = ModernError,
-            secondaryContainer = DarkSecondaryContainer,
-            onSecondaryContainer = DarkOnSecondaryContainer
+            onSurface = DarkText,
+            error = DarkError,
+            outline = DarkOutline,
+            surfaceVariant = Color(0xFF323232)
         ),
         typography = Typography(),
         content = content
@@ -86,29 +89,35 @@ fun ExamScreen(navController: NavController) {
                 title = {
                     Text(
                         text = "Exam",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp)
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontSize = 24.sp,
+                            color = DarkText
+                        )
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }){
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "Back",
+                            tint = DarkText
                         )
                     }
                 },
                 colors = TopAppBarDefaults.smallTopAppBarColors(
-                    containerColor = ModernPrimary,
-                    titleContentColor = ModernOnPrimary,
-                    navigationIconContentColor = ModernOnPrimary
+                    containerColor = DarkTopBar,
+                    titleContentColor = DarkText,
+                    navigationIconContentColor = DarkText
                 )
             )
         },
+        containerColor = DarkBackground,
         content = { innerPadding ->
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
                     .padding(16.dp)
+                    .background(DarkBackground)
             ) {
                 // TabRow for filtering exam items
                 TabRow(
@@ -117,7 +126,7 @@ fun ExamScreen(navController: NavController) {
                     indicator = { tabPositions ->
                         TabRowDefaults.Indicator(
                             Modifier.tabIndicatorOffset(tabPositions[examTabIndex]),
-                            color = ModernPrimary
+                            color = DarkPrimarys
                         )
                     }
                 ) {
@@ -129,13 +138,14 @@ fun ExamScreen(navController: NavController) {
                                 Text(
                                     text = title,
                                     fontSize = 14.sp,
-                                    color = if (examTabIndex == index) ModernOnPrimary else MaterialTheme.colorScheme.onSurface
+                                    color = if (examTabIndex == index) DarkPrimarys else DarkTextSecondary
                                 )
                             }
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+
                 // Wrapping exam items in a scrollable Column with system scroll indicator
                 Box(modifier = Modifier.fillMaxSize()) {
                     Column(
@@ -145,7 +155,7 @@ fun ExamScreen(navController: NavController) {
                         // Adding more subjects for demonstration:
                         ExamItem(
                             subject = "Mathematics",
-                            unitTitle = "unit 1 topic name",
+                            unitTitle = "Unit 1: Algebra Fundamentals",
                             goodProgress = 0.7f,
                             badProgress = 0.2f,
                             averageProgress = 0.5f,
@@ -154,7 +164,7 @@ fun ExamScreen(navController: NavController) {
                         )
                         ExamItem(
                             subject = "Physics",
-                            unitTitle = "unit 2: Mechanics",
+                            unitTitle = "Unit 2: Mechanics",
                             goodProgress = 0.8f,
                             badProgress = 0.1f,
                             averageProgress = 0.4f,
@@ -163,7 +173,7 @@ fun ExamScreen(navController: NavController) {
                         )
                         ExamItem(
                             subject = "Chemistry",
-                            unitTitle = "unit 3: Organic Chemistry",
+                            unitTitle = "Unit 3: Organic Chemistry",
                             goodProgress = 0.6f,
                             badProgress = 0.3f,
                             averageProgress = 0.4f,
@@ -172,7 +182,7 @@ fun ExamScreen(navController: NavController) {
                         )
                         ExamItem(
                             subject = "Biology",
-                            unitTitle = "unit 4: Genetics",
+                            unitTitle = "Unit 4: Genetics",
                             goodProgress = 0.65f,
                             badProgress = 0.25f,
                             averageProgress = 0.55f,
@@ -181,7 +191,7 @@ fun ExamScreen(navController: NavController) {
                         )
                         ExamItem(
                             subject = "History",
-                            unitTitle = "unit 5: World War II",
+                            unitTitle = "Unit 5: World War II",
                             goodProgress = 0.75f,
                             badProgress = 0.15f,
                             averageProgress = 0.45f,
@@ -205,19 +215,20 @@ fun ExamItem(
     excellenceProgress: Float,
     timeLabel: String
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline), shape = RoundedCornerShape(16.dp)),
+            .padding(vertical = 10.dp),
         shape = RoundedCornerShape(16.dp),
-        elevation = elevatedCardElevation(defaultElevation = 8.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = DarkSecondaryContainer,
-            contentColor = DarkOnSecondaryContainer
+        colors = CardDefaults.cardColors(
+            containerColor = DarkCardBackground,
+            contentColor = DarkText
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 6.dp
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             // Row with subject details on left and profile icon on right
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -227,51 +238,67 @@ fun ExamItem(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = subject,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = DarkText
+                            )
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        // Chip indicating exam marks
-                        Text(
-                            text = "100 Marks Exam",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = ModernPrimary,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            modifier = Modifier
-                                .border(
-                                    BorderStroke(1.dp, ModernPrimary),
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        // Chip with a more subtle design
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Transparent,
+                            border = BorderStroke(1.dp, DarkPrimarys)
+                        ) {
+                            Text(
+                                text = "100 Marks",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = DarkPrimarys,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     // Unit title displayed below the subject
                     Text(
                         text = unitTitle,
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = DarkTextSecondary
+                        )
                     )
                 }
-                Icon(
-                    imageVector = Icons.Filled.AccountCircle,
-                    contentDescription = "Profile Image",
-                    tint = ModernPrimary,
+                // Profile icon with a subtle glow effect
+                Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(52.dp)
                         .clip(RoundedCornerShape(50))
-                        .border(2.dp, ModernPrimary, RoundedCornerShape(50))
-                )
+                        .border(2.dp, DarkPrimarys, RoundedCornerShape(50))
+                        .padding(2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AccountCircle,
+                        contentDescription = "Profile Image",
+                        tint = DarkPrimarys,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            // Display four vertical progress bars with labels ("Bad", "Average", "Good", "Excellence")
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Enhanced progress visualization
             VerticalProgressWithLabels(
                 badProgress = badProgress,
                 averageProgress = averageProgress,
                 goodProgress = goodProgress,
                 excellenceProgress = excellenceProgress
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            // Bottom row: display countdown timer instead of static text
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Bottom row: display countdown timer with action button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -282,11 +309,20 @@ fun ExamItem(
                     onClick = { /* Handle start action */ },
                     shape = RoundedCornerShape(24.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ModernPrimary,
-                        contentColor = ModernOnPrimary
+                        containerColor = DarkPrimarys,
+                        contentColor = DarkOnPrimary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp
                     )
                 ) {
-                    Text(text = "Start")
+                    Text(
+                        text = "Start Exam",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
                 }
             }
         }
@@ -305,15 +341,15 @@ fun VerticalProgressWithLabels(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        VerticalProgressItem(label = "Bad", progress = badProgress)
-        VerticalProgressItem(label = "Average", progress = averageProgress)
-        VerticalProgressItem(label = "Good", progress = goodProgress)
-        VerticalProgressItem(label = "Excellence", progress = excellenceProgress)
+        VerticalProgressItem(label = "Bad", progress = badProgress, color = DarkError)
+        VerticalProgressItem(label = "Average", progress = averageProgress, color = Color(0xFFE6B422))
+        VerticalProgressItem(label = "Good", progress = goodProgress, color = Color(0xFF42A5F5))
+        VerticalProgressItem(label = "Excellence", progress = excellenceProgress, color = Color(0xFF66BB6A))
     }
 }
 
 @Composable
-fun VerticalProgressItem(label: String, progress: Float) {
+fun VerticalProgressItem(label: String, progress: Float, color: Color) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(4.dp)
@@ -321,18 +357,21 @@ fun VerticalProgressItem(label: String, progress: Float) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSecondaryContainer
+            color = DarkTextSecondary
         )
         Spacer(modifier = Modifier.height(4.dp))
         VerticalProgressIndicator(
             progress = progress,
-            modifier = Modifier.height(60.dp) // Adjust height as needed
+            modifier = Modifier.height(70.dp),
+            color = color
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "${(progress * 100).toInt()}%",
-            style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSecondaryContainer
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Medium,
+                color = color
+            )
         )
     }
 }
@@ -341,15 +380,14 @@ fun VerticalProgressItem(label: String, progress: Float) {
 fun VerticalProgressIndicator(
     progress: Float,
     modifier: Modifier = Modifier,
-    color: Color = ModernPrimary,
-    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant
+    color: Color,
+    backgroundColor: Color = Color(0xFF333333)
 ) {
     Box(
         modifier = modifier
-            .width(10.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .width(12.dp)
+            .clip(RoundedCornerShape(6.dp))
             .background(backgroundColor)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
     ) {
         Box(
             modifier = Modifier
@@ -374,10 +412,29 @@ fun CountdownTimer(targetMillis: Long) {
     val hours = (remainingTime % (24 * 3600 * 1000)) / (3600 * 1000)
     val minutes = (remainingTime % (3600 * 1000)) / (60 * 1000)
     val seconds = (remainingTime % (60 * 1000)) / 1000
-    Text(
-        text = "Exam Ends In: ${days}d ${hours}h ${minutes}m ${seconds}s",
-        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
-    )
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF333333)
+        ) {
+            Text(
+                text = " ${days}d ${hours}h ${minutes}m ${seconds}s ",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = DarkPrimary
+                ),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = "remaining",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = DarkTextSecondary
+            )
+        )
+    }
 }
 
 @Preview(showBackground = true)

@@ -1,5 +1,6 @@
 package com.example.neuroed // Change to your actual package name
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -30,128 +31,143 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-// Import NavHostController if you use that type specifically
-// import androidx.navigation.NavHostController
-// import com.example.neuroed.ui.theme.NeuroEdTheme // Import your actual theme if defined separately
 import kotlinx.coroutines.delay
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-
-
-
-// ... other imports ...
-import androidx.compose.material3.AlertDialog // Add if missing
-import androidx.compose.material3.TextButton // Add if missing
-import androidx.compose.material3.ButtonDefaults // Add if missing
-import androidx.compose.material3.CircularProgressIndicator // Add if missing
-import androidx.compose.material3.LocalContentColor // Add if missing
-import androidx.compose.material3.PrimaryTabRow // Add if missing
-import androidx.compose.material3.Tab // Add if missing
-import androidx.compose.runtime.DisposableEffect // NEW Import
-import okhttp3.* // NEW Import for OkHttp
-import okio.ByteString // NEW Import for OkHttp
+import okhttp3.*
+import okio.ByteString
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-// --- Screen Route Definitions --- (Keep as is)
+// --- Screen Route Definitions ---
 sealed class Screen(val route: String) {
     object CreateAgent : Screen("create_agent_screen")
     object AgentProcessing : Screen("agent_processing_screen")
 }
 
 // --- WebSocket Constants ---
-private const val WEBSOCKET_URL = "api/AgentCreate/" // <-- IMPORTANT: REPLACE WITH YOUR SERVER URL
+private const val WEBSOCKET_URL = "ws://localhost:8000/api/AgentCreate/" // <-- IMPORTANT: REPLACE WITH YOUR SERVER URL
 private const val NORMAL_CLOSURE_STATUS = 1000
+
+// --- Shared WebSocket State ---
+class WebSocketState {
+    var webSocket by mutableStateOf<WebSocket?>(null)
+    var connectionStatus by mutableStateOf("Disconnected")
+    var lastServerMessage by mutableStateOf<String?>(null)
+
+    // OkHttp client is created once and reused
+    val okHttpClient = OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build()
+
+    // Flag to track if processing should be stopped
+    var processingComplete by mutableStateOf(false)
+
+    // Message content being processed
+    var currentPrompt by mutableStateOf("")
+
+    // WebSocket Listener implementation
+    val webSocketListener = object : WebSocketListener() {
+        override fun onOpen(ws: WebSocket, response: Response) {
+            connectionStatus = "Connected"
+            webSocket = ws
+            println("WebSocket: Opened")
+        }
+
+        override fun onMessage(ws: WebSocket, text: String) {
+            lastServerMessage = "Received: $text"
+            println("WebSocket: Received Text: $text")
+            // Handle specific messages
+            if (text.equals("ok", ignoreCase = true)) {
+                println("WebSocket: Received 'ok' confirmation.")
+            }
+        }
+
+        override fun onMessage(ws: WebSocket, bytes: ByteString) {
+            lastServerMessage = "Received bytes: ${bytes.hex()}"
+            println("WebSocket: Received Bytes: ${bytes.hex()}")
+        }
+
+        override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+            println("WebSocket: Closing: $code / $reason")
+            connectionStatus = "Closing"
+            ws.close(NORMAL_CLOSURE_STATUS, null)
+        }
+
+        override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+            println("WebSocket: Closed: $code / $reason")
+            connectionStatus = "Disconnected"
+            webSocket = null
+        }
+
+        override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+            println("WebSocket: Error: ${t.message}")
+            t.printStackTrace()
+            connectionStatus = "Error: ${t.message?.take(30) ?: "Unknown"}"
+            webSocket = null
+        }
+    }
+
+    // Function to connect to WebSocket server
+    fun connect() {
+        if (webSocket == null || connectionStatus != "Connected") {
+            println("WebSocket: Attempting to connect...")
+            connectionStatus = "Connecting..."
+            val request = Request.Builder().url(WEBSOCKET_URL).build()
+            webSocket = okHttpClient.newWebSocket(request, webSocketListener)
+        }
+    }
+
+    // Function to disconnect WebSocket
+    fun disconnect() {
+        webSocket?.close(NORMAL_CLOSURE_STATUS, "Closing connection")
+        webSocket = null
+        connectionStatus = "Disconnected"
+    }
+
+    // Function to send message through WebSocket
+    fun sendMessage(message: String): Boolean {
+        return if (webSocket != null && connectionStatus == "Connected") {
+            println("WebSocket: Sending message: $message")
+            currentPrompt = message
+            webSocket?.send(message) ?: false
+        } else {
+            println("WebSocket: Cannot send, not connected.")
+            false
+        }
+    }
+
+    // Function to stop agent processing
+    fun stopProcessing() {
+        processingComplete = true
+        // Optionally notify server that processing is stopped
+        webSocket?.send("STOP_PROCESSING")
+    }
+}
+
+// Create a composable to remember our WebSocket state
+@Composable
+fun rememberWebSocketState(): WebSocketState {
+    return remember { WebSocketState() }
+}
 
 // --- Screen Composable: CreateAgentScreen ---
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun CreateAgentScreen(navController: NavController) {
-    // State variables (Keep existing ones)
+fun CreateAgentScreen(navController: NavController, webSocketState: WebSocketState) {
+    // State variables
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Tools", "System Tools")
     var activeTools by remember { mutableStateOf(listOf<ToolInfo>()) }
     var promptText by remember { mutableStateOf(TextFieldValue("")) }
     var showEmptyPromptWarning by remember { mutableStateOf(false) }
+    var showConnectionWarning by remember { mutableStateOf(false) }
 
-    // --- WebSocket State ---
-    var webSocket by remember { mutableStateOf<WebSocket?>(null) }
-    var connectionStatus by remember { mutableStateOf("Disconnected") }
-    var lastServerMessage by remember { mutableStateOf<String?>(null) } // To store received messages
-    val okHttpClient = remember { OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build() } // Build client once
-
-    // --- WebSocket Listener ---
-    val webSocketListener = remember {
-        object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {
-                // Use LaunchedEffect to safely update state from background thread
-                // Note: While mutableStateOf writes are thread-safe, it's good practice
-                // especially for more complex updates or UI interactions.
-                // However, for simple status updates, direct update is often okay.
-                // Keeping direct update here for simplicity of the example.
-                connectionStatus = "Connected"
-                webSocket = ws // Store the active WebSocket session
-                println("WebSocket: Opened")
-                // Optionally send an initial message or auth token here if needed
-                // ws.send("Client connected")
-            }
-
-            override fun onMessage(ws: WebSocket, text: String) {
-                lastServerMessage = "Received: $text"
-                println("WebSocket: Received Text: $text")
-                // --- HANDLE "ok" or other specific messages ---
-                if (text.equals("ok", ignoreCase = true)) {
-                    // Maybe update some UI state or trigger another action
-                    println("WebSocket: Received 'ok' confirmation.")
-                }
-                // --- END HANDLING ---
-            }
-
-            override fun onMessage(ws: WebSocket, bytes: ByteString) {
-                lastServerMessage = "Received bytes: ${bytes.hex()}"
-                println("WebSocket: Received Bytes: ${bytes.hex()}")
-            }
-
-            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
-                println("WebSocket: Closing: $code / $reason")
-                connectionStatus = "Closing"
-                ws.close(NORMAL_CLOSURE_STATUS, null) // Acknowledge closing
-            }
-
-            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                println("WebSocket: Closed: $code / $reason")
-                connectionStatus = "Disconnected"
-                webSocket = null // Clear the reference
-            }
-
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                println("WebSocket: Error: ${t.message}")
-                t.printStackTrace()
-                connectionStatus = "Error: ${t.message?.take(30) ?: "Unknown"}" // Show brief error
-                webSocket = null // Clear reference on failure too
-            }
-        }
+    // Connect to WebSocket when screen is shown
+    LaunchedEffect(Unit) {
+        webSocketState.connect()
     }
 
-    // --- WebSocket Connection Management ---
-    DisposableEffect(WEBSOCKET_URL) { // Reconnect if URL changes (unlikely here)
-        println("WebSocket: Attempting to connect...")
-        connectionStatus = "Connecting..."
-        val request = Request.Builder().url(WEBSOCKET_URL).build()
-        val currentWebSocket = okHttpClient.newWebSocket(request, webSocketListener)
-
-        // Cleanup function: Called when the composable leaves the composition
-        onDispose {
-            println("WebSocket: Disposing - Closing connection.")
-            currentWebSocket.close(NORMAL_CLOSURE_STATUS, "Leaving screen")
-            webSocket = null // Ensure reference is cleared
-            connectionStatus = "Disconnected" // Reset status on dispose
-        }
-    }
-
-    // Derived state for easy checking (Keep as is)
+    // Derived state for easy checking
     val activeToolNames = remember(activeTools) { activeTools.map { it.name }.toSet() }
 
-    // Warning Dialog (Keep as is)
+    // Warning Dialog
     if (showEmptyPromptWarning) {
         AlertDialog(
             onDismissRequest = { showEmptyPromptWarning = false },
@@ -166,20 +182,42 @@ fun CreateAgentScreen(navController: NavController) {
         )
     }
 
+    // Connection Warning Dialog
+    if (showConnectionWarning) {
+        AlertDialog(
+            onDismissRequest = { showConnectionWarning = false },
+            title = { Text("Connection Error") },
+            text = { Text("WebSocket is not connected. Please wait for connection or try again.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConnectionWarning = false
+                    webSocketState.connect() // Try to reconnect
+                }) {
+                    Text("Reconnect")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConnectionWarning = false }) {
+                    Text("OK")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            // --- MODIFIED TopAppBar to show connection status ---
             TopAppBar(
                 title = {
-                    Column { // Use column for title and status
+                    Column {
                         Text("Create Agent")
                         Text(
-                            text = "WS: $connectionStatus",
-                            style = MaterialTheme.typography.labelSmall, // Smaller font for status
+                            text = "WS: ${webSocketState.connectionStatus}",
+                            style = MaterialTheme.typography.labelSmall,
                             color = when {
-                                connectionStatus == "Connected" -> Color.Green.copy(alpha = 0.8f)
-                                connectionStatus.startsWith("Error") -> MaterialTheme.colorScheme.error
+                                webSocketState.connectionStatus == "Connected" -> Color.Green.copy(alpha = 0.8f)
+                                webSocketState.connectionStatus.startsWith("Error") -> MaterialTheme.colorScheme.error
                                 else -> LocalContentColor.current.copy(alpha = 0.7f)
                             }
                         )
@@ -197,7 +235,6 @@ fun CreateAgentScreen(navController: NavController) {
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
-            // --- END MODIFIED TopAppBar ---
         },
         bottomBar = {
             FilledTonalButton(
@@ -205,32 +242,22 @@ fun CreateAgentScreen(navController: NavController) {
                     val prompt = promptText.text.trim()
                     if (prompt.isEmpty()) {
                         showEmptyPromptWarning = true
+                    } else if (webSocketState.connectionStatus != "Connected") {
+                        showConnectionWarning = true
                     } else {
-                        // --- WEBSOCKET SEND & NAVIGATION TRIGGER ---
-                        if (webSocket != null && connectionStatus == "Connected") {
-                            println("WebSocket: Sending prompt: $prompt")
-                            val sent = webSocket?.send(prompt) ?: false // Send the prompt text
-                            if (sent) {
-                                println("WebSocket: Send initiated.")
-                                // Navigate immediately after sending
-                                navController.navigate(Screen.AgentProcessing.route)
-                            } else {
-                                println("WebSocket: Failed to send prompt (queue full or socket closed).")
-                                // Optionally show an error message to the user
-                                lastServerMessage = "Error: Could not send prompt."
-                                // Maybe don't navigate if send fails? Depends on requirements.
-                            }
+                        // Reset processing state for new session
+                        webSocketState.processingComplete = false
+
+                        // Send prompt via WebSocket
+                        if (webSocketState.sendMessage(prompt)) {
+                            // Navigate to processing screen
+                            navController.navigate(Screen.AgentProcessing.route)
                         } else {
-                            println("WebSocket: Cannot send, not connected.")
-                            // Show a warning that connection isn't ready
-                            showEmptyPromptWarning = true // Re-use warning or create specific one
-                            // Modify AlertDialog text if needed to indicate connection issue
+                            showConnectionWarning = true
                         }
-                        // --- END WEBSOCKET SEND & NAVIGATION TRIGGER ---
                     }
                 },
-                // Disable button if not connected? Optional.
-                enabled = connectionStatus == "Connected",
+                enabled = webSocketState.connectionStatus == "Connected",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -239,7 +266,7 @@ fun CreateAgentScreen(navController: NavController) {
             ) {
                 Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                Text(if (connectionStatus == "Connected") "Start Agent" else "Connecting...")
+                Text(if (webSocketState.connectionStatus == "Connected") "Start Agent" else "Connecting...")
             }
         }
     ) { innerPadding ->
@@ -250,7 +277,7 @@ fun CreateAgentScreen(navController: NavController) {
             contentPadding = innerPadding,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- Prompt Input --- (Keep as is)
+            // --- Prompt Input ---
             item {
                 OutlinedTextField(
                     value = promptText,
@@ -263,7 +290,7 @@ fun CreateAgentScreen(navController: NavController) {
                 )
             }
 
-            // --- Active Tools Section --- (Keep as is)
+            // --- Active Tools Section ---
             if (activeTools.isNotEmpty()) {
                 item {
                     Column {
@@ -301,7 +328,7 @@ fun CreateAgentScreen(navController: NavController) {
                 }
             }
 
-            // --- Tool Tabs --- (Keep as is)
+            // --- Tool Tabs ---
             item {
                 PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
                     tabs.forEachIndexed { index, title ->
@@ -314,7 +341,7 @@ fun CreateAgentScreen(navController: NavController) {
                 }
             }
 
-            // --- Scrollable Tool List --- (Keep as is)
+            // --- Scrollable Tool List ---
             val currentTools = when (selectedTabIndex) {
                 0 -> getStandardTools()
                 1 -> getSystemTools()
@@ -338,61 +365,91 @@ fun CreateAgentScreen(navController: NavController) {
 
             // --- Optional: Display last received message for debugging ---
             item {
-                if (lastServerMessage != null) {
+                if (webSocketState.lastServerMessage != null) {
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Server: $lastServerMessage",
+                        "Server: ${webSocketState.lastServerMessage}",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            // --- End Optional Display ---
-
 
             item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
 
-// --- Screen Composable: AgentProcessingScreen ---
-// (Keep AgentProcessingScreen as it was, no changes needed there for this request)
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentProcessingScreen(
-    onStopClick: () -> Unit // Expects a lambda for the stop action
+    navController: NavController,
+    webSocketState: WebSocketState,
+    onStopClick: () -> Unit
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
     val steps = listOf(
         "Agent process your Query....", // Index 0
-        "Agent confusion track.....",   // Index 1 - CONFUSION STEP
+        "Agent asking for clarification.....",   // Index 1 - CONFUSION STEP
         "Agent clear confusion..."      // Index 2
     )
     val confusionStepIndex = 1 // Define the index for the confusion step
 
-    var processingComplete by remember { mutableStateOf(false) }
     var confusionInput by remember { mutableStateOf(TextFieldValue("")) }
 
-    // --- Countdown Timer State ---
-    val totalDurationSeconds = 90 // Example: 90 seconds total processing time
-    var remainingTimeSeconds by remember { mutableLongStateOf(totalDurationSeconds.toLong()) }
-    var timerRunning by remember { mutableStateOf(true) } // Control timer independently
+    // Track clarification questions from the server
+    var clarificationQuestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var currentQuestionIndex by remember { mutableIntStateOf(0) }
+    var showProcessingPrompt by remember { mutableStateOf(false) }
 
-    // Function to format seconds into MM:SS
-    fun formatTime(seconds: Long): String {
-        if (seconds < 0) return "00:00" // Avoid negative display
-        val minutes = TimeUnit.SECONDS.toMinutes(seconds)
-        val remainingSecs = seconds - TimeUnit.MINUTES.toSeconds(minutes)
-        return String.format("%02d:%02d", minutes, remainingSecs)
-    }
+    // Store all answers
+    var questionAnswers by remember { mutableStateOf<MutableMap<Int, String>>(mutableMapOf()) }
+
+    // Track if we're waiting for new questions after submitting answers
+    var waitingForServerResponse by remember { mutableStateOf(false) }
 
     // --- Stop Action ---
     // Encapsulate the stop logic
     val performStopAction = {
-        if (!processingComplete) {
-            processingComplete = true // Mark overall process as stopped/complete
-            timerRunning = false      // Stop the timer explicitly
-            onStopClick()             // Call the navigation lambda
+        if (!webSocketState.processingComplete) {
+            webSocketState.stopProcessing()
+            // Send stop signal to server if needed
+            webSocketState.webSocket?.send("STOP")
+            // Don't navigate back automatically - let user decide
+        }
+    }
+
+    // --- Handle individual question submission ---
+    val submitCurrentAnswer = {
+        val answer = confusionInput.text.trim()
+        if (answer.isNotEmpty()) {
+            // Store the answer for the current question
+            questionAnswers[currentQuestionIndex] = answer
+
+            // Move to next question
+            if (currentQuestionIndex < clarificationQuestions.size - 1) {
+                currentQuestionIndex++
+                confusionInput = TextFieldValue("")
+            } else {
+                // All questions answered, show processing prompt
+                showProcessingPrompt = true
+                waitingForServerResponse = true
+
+                // Prepare all answers to send
+                val allAnswers = StringBuilder()
+                for (i in 0 until clarificationQuestions.size) {
+                    allAnswers.append("Q${i+1}: ${clarificationQuestions[i]}\n")
+                    allAnswers.append("A${i+1}: ${questionAnswers[i] ?: ""}\n\n")
+                }
+
+                // Send all answers at once
+                webSocketState.webSocket?.send("CLARIFY:${allAnswers.toString()}")
+
+                // We don't progress to next step yet - we need to wait for server response
+                // If the server sends more questions, we'll stay at the clarification step
+            }
         }
     }
 
@@ -402,7 +459,10 @@ fun AgentProcessingScreen(
             TopAppBar(
                 title = { Text("Agent Processing") },
                 navigationIcon = {
-                    IconButton(onClick = performStopAction) { // Use the unified stop action
+                    IconButton(onClick = {
+                        performStopAction()
+                        navController.navigateUp()
+                    }) {
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
                             contentDescription = "Stop and Go Back"
@@ -410,23 +470,24 @@ fun AgentProcessingScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant, // Match card color
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         },
-        // Place button in bottom bar slot
         bottomBar = {
-            // Optional: Add some elevation/surface for the bottom bar area
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shadowElevation = 4.dp, // Add slight shadow
-                color = MaterialTheme.colorScheme.scrim // Match background or use surface
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.scrim
             ) {
                 Button(
-                    onClick = performStopAction, // Use the unified stop action
-                    enabled = !processingComplete, // Disable when stopped/complete
+                    onClick = {
+                        performStopAction()
+                        navController.navigateUp()
+                    },
+                    enabled = !webSocketState.processingComplete,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.White,
                         contentColor = Color.Black,
@@ -435,20 +496,18 @@ fun AgentProcessingScreen(
                     ),
                     shape = RoundedCornerShape(50),
                     modifier = Modifier
-                        // .align(Alignment.BottomCenter) // Alignment done by bottomBar placement
-                        .fillMaxWidth(0.9f) // Control width relative to parent
-                        .padding(horizontal = 16.dp, vertical = 16.dp) // Padding around the button
+                        .fillMaxWidth(0.9f)
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
                         .height(48.dp)
                 ) {
-                    // Conditional Content for Button
-                    if (!processingComplete) {
+                    if (!webSocketState.processingComplete) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(ButtonDefaults.IconSize),
-                                color = LocalContentColor.current, // Black
+                                color = LocalContentColor.current,
                                 strokeWidth = 2.dp
                             )
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
@@ -460,59 +519,49 @@ fun AgentProcessingScreen(
                         }
                     } else {
                         Text(
-                            text = "Stopped", // Indicate final state
+                            text = "Stopped",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
-
         },
-        containerColor = MaterialTheme.colorScheme.scrim // Background for the main content area
-    ) { innerPadding -> // Content area padding provided by Scaffold
-
-        // Main content column (steps, optional input, timer)
+        containerColor = MaterialTheme.colorScheme.scrim
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding) // Apply padding from Scaffold
-                .padding(horizontal = 16.dp) // Add horizontal padding for content
-                .verticalScroll(rememberScrollState()), // Make content scrollable
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(16.dp)) // Space from TopAppBar
+            Spacer(Modifier.height(16.dp))
 
             // Card with Steps
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                // Let card height be determined by content, remove fillMaxHeight
-                ,
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        // .fillMaxSize() // Remove fillMaxSize from inner column
-                        .padding(20.dp),
+                    modifier = Modifier.padding(20.dp),
                 ) {
                     steps.forEachIndexed { index, step ->
-                        // --- Row for Step Item (Indicator, Text, Line) ---
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(vertical = 8.dp)
                         ) {
-                            // Circle indicator
                             val circleColor = when {
-                                index < currentStep || (index == currentStep && processingComplete) -> MaterialTheme.colorScheme.primary
-                                index == currentStep && !processingComplete -> MaterialTheme.colorScheme.primary
+                                index < currentStep || (index == currentStep && webSocketState.processingComplete) -> MaterialTheme.colorScheme.primary
+                                index == currentStep && !webSocketState.processingComplete -> MaterialTheme.colorScheme.primary
                                 else -> MaterialTheme.colorScheme.outline
                             }
                             val iconColor = when {
-                                index < currentStep || (index == currentStep && processingComplete) -> MaterialTheme.colorScheme.onPrimary
+                                index < currentStep || (index == currentStep && webSocketState.processingComplete) -> MaterialTheme.colorScheme.onPrimary
                                 else -> Color.Transparent
                             }
 
@@ -522,144 +571,274 @@ fun AgentProcessingScreen(
                                     .background(color = circleColor, shape = CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (index < currentStep || (index == currentStep && processingComplete)) {
+                                if (index < currentStep || (index == currentStep && webSocketState.processingComplete)) {
                                     Icon(Icons.Filled.Check, "Completed", tint = iconColor, modifier = Modifier.size(16.dp))
                                 }
                             }
 
-                            // Step text
                             Text(
                                 text = step,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 16.sp,
-                                fontWeight = if (index == currentStep && !processingComplete) FontWeight.Bold else FontWeight.Normal,
+                                fontWeight = if (index == currentStep && !webSocketState.processingComplete) FontWeight.Bold else FontWeight.Normal,
                                 modifier = Modifier.padding(start = 16.dp)
                             )
-                        } // End Row for Step Item
+                        }
 
-                        // Line connecting circles
                         if (index < steps.size - 1) {
                             Box(
                                 modifier = Modifier
-                                    .padding(start = 11.dp) // Align with center of circle
+                                    .padding(start = 11.dp)
                                     .width(2.dp)
                                     .height(24.dp)
                                     .background(if (index < currentStep) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                             )
                         }
-                        // --- End Line ---
-                    } // End forEachIndexed
-                } // End Column inside Card
-            } // End Card
+                    }
+                }
+            }
 
-            Spacer(Modifier.height(24.dp)) // Space below card
+            Spacer(Modifier.height(24.dp))
 
-            // --- Conditional Input Area for Confusion Step ---
+            // Display progress for questions when questions are available
+            if (clarificationQuestions.isNotEmpty() && currentStep == confusionStepIndex && !webSocketState.processingComplete && !showProcessingPrompt) {
+                Text(
+                    text = "Question ${currentQuestionIndex + 1} of ${clarificationQuestions.size}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                LinearProgressIndicator(
+                    progress = (currentQuestionIndex.toFloat() / clarificationQuestions.size),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // --- Conditional Input Area for Clarification Questions ---
             AnimatedVisibility(
-                visible = currentStep == confusionStepIndex && !processingComplete,
+                visible = currentStep == confusionStepIndex && !webSocketState.processingComplete && clarificationQuestions.isNotEmpty() && !showProcessingPrompt,
                 enter = fadeIn(animationSpec = tween(300)),
                 exit = fadeOut(animationSpec = tween(300))
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Agent seems confused. Please provide clarification or keywords:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = confusionInput,
-                        onValueChange = { confusionInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Your Clarification") },
-                        placeholder = { Text("e.g., focus on the main points, simplify the language...") },
-                        shape = RoundedCornerShape(12.dp),
-                        maxLines = 3
-                    )
-                }
-            }
-            // --- End Conditional Input Area ---
+                    // Show current question
+                    if (clarificationQuestions.isNotEmpty() && currentQuestionIndex < clarificationQuestions.size) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = clarificationQuestions[currentQuestionIndex],
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
 
+                        Spacer(Modifier.height(16.dp))
 
-            // --- Countdown Timer Display ---
-            // Add space above timer, ensure it's visible even if input appears
-            Spacer(Modifier.height( if (currentStep == confusionStepIndex && !processingComplete) 16.dp else 32.dp))
+                        OutlinedTextField(
+                            value = confusionInput,
+                            onValueChange = { confusionInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Your Answer") },
+                            placeholder = { Text("Type your answer here...") },
+                            shape = RoundedCornerShape(12.dp),
+                            maxLines = 3
+                        )
 
-            Text(
-                text = "Time Remaining: ${formatTime(remainingTimeSeconds)}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface, // Use primary text color
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-            // --- End Countdown Timer Display ---
+                        Spacer(Modifier.height(12.dp))
 
-            Spacer(Modifier.height(80.dp)) // Extra space at bottom to ensure content scrolls above bottom bar
-
-        } // End Main Content Column
-    } // End Scaffold
-
-    // --- LaunchedEffect for Step Advancement ---
-    LaunchedEffect(processingComplete) {
-        if (!processingComplete) {
-            while (currentStep < steps.size && !processingComplete) {
-                // Don't advance automatically if waiting for input at confusion step
-                if (currentStep == confusionStepIndex) {
-                    // Optionally add logic here if you want to auto-proceed
-                    // after a certain time even with no input, or wait indefinitely.
-                    // For now, it will just wait until processingComplete becomes true.
-                    delay(Long.MAX_VALUE) // Effectively waits until interrupted
-                } else {
-                    delay(1500) // Delay for other steps
-                    // Check again after delay
-                    if (!processingComplete) {
-                        if (currentStep < steps.size - 1) {
-                            currentStep++
-                        } else { // Reached the last step (index 2)
-                            // Keep showing the last step as current for a bit?
-                            // Or mark complete immediately after last delay?
-                            // Let's mark complete after the last delay completes.
-                            currentStep = steps.size // Visually marks last step done
-                            performStopAction() // Stop everything after completing last step
+                        Button(
+                            onClick = submitCurrentAnswer,
+                            modifier = Modifier.align(Alignment.End),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text(if (currentQuestionIndex < clarificationQuestions.size - 1) "Next Question" else "Submit Answers")
                         }
                     }
                 }
             }
-            // If the loop finishes because currentStep >= steps.size, ensure stopped
-            if(currentStep >= steps.size && !processingComplete) {
-                performStopAction()
-            }
-        }
-    }
-    // --- End LaunchedEffect for Step Advancement ---
 
+            // --- Processing Prompt after all questions are answered ---
+            AnimatedVisibility(
+                visible = currentStep == confusionStepIndex && !webSocketState.processingComplete && showProcessingPrompt,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (waitingForServerResponse)
+                            "Processing your answers..."
+                        else "Answers processed! Moving to next step...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
 
-    // --- LaunchedEffect for Countdown Timer ---
-    LaunchedEffect(timerRunning, processingComplete) {
-        if (timerRunning && !processingComplete) {
-            while (remainingTimeSeconds > 0 && timerRunning && !processingComplete) {
-                delay(1000)
-                // Check flags again after delay
-                if (timerRunning && !processingComplete) {
-                    remainingTimeSeconds--
-                    if (remainingTimeSeconds == 0L) {
-                        // Time ran out, stop the process
-                        performStopAction()
+                    if (waitingForServerResponse) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 4.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = "Processed",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
+                        )
+
+                        // Add a small delay before moving to next step
+                        LaunchedEffect(Unit) {
+                            delay(1500)
+                            currentStep++
+                        }
                     }
                 }
             }
-        }
-        // Ensure timer stops if processing completes while effect is running
-        if(processingComplete) {
-            timerRunning = false
+
+            Spacer(Modifier.height(80.dp))
         }
     }
-    // --- End LaunchedEffect for Countdown Timer ---
+
+    // --- LaunchedEffect for Step Advancement ---
+    LaunchedEffect(webSocketState.processingComplete) {
+        if (!webSocketState.processingComplete) {
+            while (currentStep < steps.size && !webSocketState.processingComplete) {
+                // Auto-advance logic depending on steps
+                when (currentStep) {
+                    confusionStepIndex -> {
+                        // Wait for input at confusion step
+                        delay(Long.MAX_VALUE) // Wait until interrupted
+                    }
+                    else -> {
+                        delay(1500) // Normal step delay
+                        if (!webSocketState.processingComplete) {
+                            if (currentStep < steps.size - 1) {
+                                currentStep++
+                            } else {
+                                currentStep = steps.size
+                                webSocketState.stopProcessing()
+                            }
+                        }
+                    }
+                }
+            }
+            if (currentStep >= steps.size && !webSocketState.processingComplete) {
+                webSocketState.stopProcessing()
+            }
+        }
+    }
+
+    // Listen for WebSocket messages that might affect our state
+    LaunchedEffect(webSocketState.lastServerMessage) {
+        // Parse messages from server to potentially advance steps
+        val message = webSocketState.lastServerMessage ?: return@LaunchedEffect
+        Log.d("WebSocketdata", "Received message: $message")
+
+        when {
+            message.contains("STEP:0", ignoreCase = true) -> currentStep = 0
+            message.contains("STEP:1", ignoreCase = true) -> currentStep = 1
+            message.contains("STEP:2", ignoreCase = true) -> currentStep = 2
+            message.contains("COMPLETE", ignoreCase = true) -> webSocketState.stopProcessing()
+        }
+
+        // Parse JSON for clarification questions
+        if (message.contains("\"clarification_questions\"")) {
+            try {
+                // Extract the JSON part from the message
+                val jsonStartIndex = message.indexOf("{")
+                val jsonEndIndex = message.lastIndexOf("}") + 1
+
+                if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+                    val jsonString = message.substring(jsonStartIndex, jsonEndIndex)
+
+                    // Use a JSON parser to extract the clarification questions
+                    val jsonObject = JSONObject(jsonString)
+
+                    // Check if intent is now understood
+                    val intentUnderstood = jsonObject.optBoolean("intent_understood", false)
+
+                    if (intentUnderstood) {
+                        // Intent is understood, move to next step
+                        waitingForServerResponse = false
+                        showProcessingPrompt = true
+                        // Progress will happen after brief delay via the LaunchedEffect
+                    } else {
+                        // Get new clarification questions
+                        val questionsArray = jsonObject.getJSONArray("clarification_questions")
+
+                        val questions = mutableListOf<String>()
+                        for (i in 0 until questionsArray.length()) {
+                            questions.add(questionsArray.getString(i))
+                        }
+
+                        // Reset for new round of questions
+                        clarificationQuestions = questions
+                        currentQuestionIndex = 0
+                        waitingForServerResponse = false
+                        showProcessingPrompt = false
+
+                        // Clear previous answers for the new set of questions
+                        questionAnswers.clear()
+                        confusionInput = TextFieldValue("")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("WebSocketdata", "Error parsing clarification questions: ${e.message}")
+            }
+        }
+    }
 }
+// --- Modified NavHost implementation (example) ---
+// This would go in your main activity or navigation setup
+/*
+@Composable
+fun AgentNavHost(navController: NavHostController) {
+    // Create shared WebSocket state
+    val webSocketState = rememberWebSocketState()
+
+    // Clean up WebSocket when the app exits
+    DisposableEffect(Unit) {
+        onDispose {
+            webSocketState.disconnect()
+        }
+    }
+
+    NavHost(navController = navController, startDestination = Screen.CreateAgent.route) {
+        composable(Screen.CreateAgent.route) {
+            CreateAgentScreen(navController, webSocketState)
+        }
+        composable(Screen.AgentProcessing.route) {
+            AgentProcessingScreen(navController, webSocketState)
+        }
+        // Other routes...
+    }
+}
+*/
 
 // --- Support Code (Data, Helpers, ListItems) ---
-// (Keep ToolInfo, getStandardTools, getSystemTools, ToolIcon, ToolListItem as they were)
 data class ToolInfo(val name: String, val icon: ImageVector)
 
 fun getStandardTools(): List<ToolInfo> = listOf(
@@ -726,13 +905,3 @@ fun ToolListItem(
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     )
 }
-
-
-// --- IMPORTANT REMINDERS ---
-// 1.  Replace `"ws://your_websocket_server_here"` with your actual WebSocket server address.
-// 2.  Ensure your server is running and accessible from the device/emulator running the app.
-// 3.  This implementation connects when the screen becomes visible and disconnects when it leaves.
-// 4.  The prompt is sent when the "Start Agent" button is clicked, only if connected.
-// 5.  Navigation happens *immediately* after the `send` call is initiated. It doesn't wait for a server confirmation like "ok" before navigating in this version.
-// 6.  Error handling is basic; you might want more robust handling (e.g., retries, user feedback).
-// 7.  Consider using a ViewModel for more complex state management and separation of concerns, especially if the WebSocket logic grows.

@@ -5,15 +5,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.neuroed.model.GenerateSession
 import com.example.neuroed.model.TestList
+import com.example.neuroed.repository.AssignmentListRepository
+import com.example.neuroed.repository.AttendanceRepository
+//import com.example.neuroed.repository.CallAgentRepository
+import com.example.neuroed.repository.CharacterCreateRepository
+import com.example.neuroed.repository.ExamListRepository
+import com.example.neuroed.repository.ForgettingCurveRepository
 import com.example.neuroed.repository.GenerateSessionRepositry
+import com.example.neuroed.repository.LearningProgressRepository
+import com.example.neuroed.repository.MeditationListRepository
 import com.example.neuroed.repository.PhoneNumberRepository
+import com.example.neuroed.repository.SessionRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingSubtopicRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingTopicRepository
 import com.example.neuroed.repository.SubjectSyllabusSaveRepository
+import com.example.neuroed.repository.TaskListRepository
 import com.example.neuroed.repository.TestCreateRepository
 import com.example.neuroed.repository.TestListRepository
 import com.example.neuroed.repository.TestQuestionCreateRepository
+import com.example.neuroed.repository.UserCharacterGet
+import com.example.neuroed.repository.UserProfileRepository
 //import com.example.neuroed.repository.TestCreateRepositry
 import com.example.neuroed.repository.UserinfosaveRepository
 import com.example.neuroed.repository.codeVerificationRepository
@@ -160,4 +172,185 @@ class SubjectSyllabusHeadingTopicSubtopicViewModelFactory(
 }
 
 //================================================================================================
+
+
+class CharacterCreateViewModelFactory(
+    private val repository: CharacterCreateRepository
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(CharacterCreateViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return CharacterCreateViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+//==================================================================================================
+
+class CharacterGetViewModelFactory(
+    private val repository: UserCharacterGet,
+    private val user_id: Int
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(UserCharacterListViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return UserCharacterListViewModel(repository, user_id) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+
+//=================================================================================================
+
+
+
+//==================================================================================================
+
+class TaskGetViewModelFactory(
+    private val repository: TaskListRepository,
+    private val user_id: Int
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(TaskListViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return TaskListViewModel(repository, user_id) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+//==================================================================================================
+
+
+class ExamGetViewModelFactory(
+    private val repository: ExamListRepository,
+    private val user_id: Int
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ExamGetListViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ExamGetListViewModel(repository, user_id) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+//==================================================================================================
+
+
+class assignmentGetViewModelFactory(
+    private val repository: AssignmentListRepository,
+    private val user_id: Int
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(assignmentGetListViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return assignmentGetListViewModel(repository, user_id) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+class MeditationGetViewModelFactory(
+    private val repository: MeditationListRepository,
+    private val user_id: Int
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom( MeditationGetListViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return  MeditationGetListViewModel(repository, user_id) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+
+
+class ForgettingCurveViewModelFactory(
+    private val repository: ForgettingCurveRepository,
+    private val user_id: Int
+) : ViewModelProvider.Factory {
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ForgettingCurveViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ForgettingCurveViewModel(repository, user_id) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+//=======================================================================================
+
+
+class UserProfileViewModelFactory(
+    private val repository: UserProfileRepository,
+    private val userId: Int
+) : ViewModelProvider.Factory {
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(UserProfileViewModel::class.java)) {
+            return UserProfileViewModel(repository, userId) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+//==================================================================================
+
+
+
+class AttendanceViewModelFactory(
+    private val repository: AttendanceRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(AttendanceViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return AttendanceViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+//=================================================================================
+
+
+class LearningProgressViewModelFactory(
+    private val repository: LearningProgressRepository,
+    private val userId: Int
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return if (modelClass.isAssignableFrom(LearningProgressViewModel::class.java)) {
+            LearningProgressViewModel(repository, userId) as T
+        } else {
+            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        }
+    }
+}
+
+
+
+// 4) ViewModelFactory
+
+// SessionViewModelFactory.kt
+class SessionViewModelFactory(
+    private val repo: SessionRepository
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(SessionViewModel::class.java)) {
+            return SessionViewModel(repo) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
 

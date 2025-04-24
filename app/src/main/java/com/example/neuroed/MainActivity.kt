@@ -1,25 +1,38 @@
 package com.example.neuroed
 
-
 import GetDateOfBirthScreen
+import LanguageLearnScreen
 import PlaygroundScreen
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,12 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -44,11 +59,20 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.example.neuroed.model.UserAppVisitData
 import com.example.neuroed.network.RetrofitClient
+import com.example.neuroed.repository.SessionRepository
 import com.example.neuroed.repository.SubjectSyllabusGetRepository
 import com.example.neuroed.repository.TestNotificationModelPredicationRepository
 import com.example.neuroed.repository.UservisitRepository
+import com.example.neuroed.viewmodel.SessionViewModel
+import com.example.neuroed.viewmodel.SessionViewModelFactory
 import com.example.neuroed.viewmodel.TestNotificationViewModel
 import com.example.neuroed.viewmodel.TestNotificationViewModelFactory
 import com.example.neuroed.viewmodel.UservisitdataViewModelFactory
@@ -60,9 +84,15 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
-
+// --------------------------------------------------------------
 // ViewModel to hold authentication state.
+// --------------------------------------------------------------
 class AuthViewModel : ViewModel() {
     var isUserSignedUp by mutableStateOf(false)
         private set
@@ -72,8 +102,10 @@ class AuthViewModel : ViewModel() {
     }
 }
 
+// --------------------------------------------------------------
+// Main Activity
+// --------------------------------------------------------------
 class MainActivity : ComponentActivity() {
-
 
     private val authViewModel: AuthViewModel by viewModels()
     private val azureSubscriptionKey = "YOUR_AZURE_SUBSCRIPTION_KEY" // Replace with your actual key
@@ -81,7 +113,6 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var firebaseAuth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,7 +122,7 @@ class MainActivity : ComponentActivity() {
 
         // Configure Google Sign-In with your web client ID
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(getString(R.string.default_web_client_id)) // Ensure this string exists in res/values/strings.xml
+            .requestIdToken(getString(R.string.default_web_client_id)) // from res/values/strings.xml
             .requestEmail()
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
@@ -105,21 +136,66 @@ class MainActivity : ComponentActivity() {
                 try {
                     val account = task.getResult(Exception::class.java) as GoogleSignInAccount
                     firebaseAuthWithGoogle(account)
-
-
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Google sign-in failed", e)
                 }
             }
         }
+
+        schedulePipelineWorker()
+
+        // Set Compose content
         setContent {
-            NeuroEdApp(onGoogleSignUpClick = {
-                val signInIntent = googleSignInClient.signInIntent
-                googleSignInLauncher.launch(signInIntent)
-            },
-                authViewModel = authViewModel
-            )
+            val apiService  = RetrofitClient.apiService
+            val sessionRepo = SessionRepository(apiService)
+
+            // Track session for user 1
+            SessionTrackerHost(userId = 1, repo = sessionRepo)
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color.Black
+            ) {
+                NeuroEdApp(
+                    onGoogleSignUpClick = {
+                        val signInIntent = googleSignInClient.signInIntent
+                        googleSignInLauncher.launch(signInIntent)
+                    },
+                    authViewModel = authViewModel
+                )
+            }
         }
+
+    }
+
+
+    private fun schedulePipelineWorker() {
+        // Grab your authenticated user’s ID, or fall back to 1
+        val userId = firebaseAuth.currentUser?.uid?.hashCode() ?: 1
+
+        // Build input data for the worker
+        val inputData = workDataOf("user_id" to userId)
+
+        // Create a 30‑minute repeating request
+        val request = PeriodicWorkRequestBuilder<PipelineWorker>(
+            30, TimeUnit.MINUTES
+        )
+            .setInputData(inputData)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+
+        // Enqueue as a unique work so it won’t be duplicated
+        WorkManager.getInstance(this)
+            .enqueueUniquePeriodicWork(
+                "pipeline_worker",
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+
+        Log.d("MainActivity", "PipelineWorker scheduled every 30 minutes (userId=$userId)")
     }
 
     private fun firebaseAuthWithGoogle(account: GoogleSignInAccount) {
@@ -132,85 +208,87 @@ class MainActivity : ComponentActivity() {
                     sharedPrefs.edit().putBoolean("isUserSignedUp", true).apply()
                     Log.d("MainActivity", "Firebase authentication successful")
 
-                    // Inform the ViewModel (if used) that the user is now signed up.
+                    // Inform the ViewModel that the user is now signed up.
                     authViewModel.markUserSignedUp()
 
-                    // Retrieve and log details from the GoogleSignInAccount.
+                    // Show some info about the signed-in user
                     val displayName = account.displayName ?: "No Display Name"
                     val email = account.email ?: "No Email"
                     val photoUrl = account.photoUrl?.toString() ?: "No Photo URL"
                     Log.d("MainActivity", "Google Account Info - Name: $displayName, Email: $email, Photo URL: $photoUrl")
 
-                    // Retrieve additional data from FirebaseUser.
+                    // Additional data from FirebaseUser
                     val firebaseUser = firebaseAuth.currentUser
                     firebaseUser?.let { user ->
                         Log.d("MainActivity", "Firebase User UID: ${user.uid}")
                         Log.d("MainActivity", "User Providers: ${user.providerData.joinToString { it.providerId }}")
                         Log.d("MainActivity", "Account Created At: ${user.metadata?.creationTimestamp}")
                         Log.d("MainActivity", "Last Sign-In At: ${user.metadata?.lastSignInTimestamp}")
-
-                        // Retrieve the phone number if available.
                         val phoneNumber = user.phoneNumber ?: "No Phone Number"
                         Log.d("MainActivity", "User Phone Number: $phoneNumber")
                     }
 
-                    // You can now pass this user data to your UI or store it in your database.
-                    // For example, you could navigate to the home screen and display user details.
                 } else {
                     Log.e("MainActivity", "Firebase authentication failed", task.exception)
                 }
             }
     }
-
-
 }
 
+// --------------------------------------------------------------
+// The top-level Composable that hosts the NavGraph
+// --------------------------------------------------------------
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun NeuroEdApp(onGoogleSignUpClick: () -> Unit,
-               authViewModel: AuthViewModel = viewModel()) {
+fun NeuroEdApp(
+    onGoogleSignUpClick: () -> Unit,
+    authViewModel: AuthViewModel = viewModel()
+) {
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        val navController = rememberNavController()
+        val webSocketState = rememberWebSocketState()
 
-
-        MaterialTheme(colorScheme = darkColorScheme()) {
-            val navController = rememberNavController()
-            val context = LocalContext.current
-
-            // Initial check on app start: navigate based on saved sign-up state.
-            LaunchedEffect(Unit) {
-                val sharedPrefs = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
-                val isUserSignedUp = sharedPrefs.getBoolean("isUserSignedUp", false)
-                if (isUserSignedUp) {
-                    navController.navigate("home") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                } else {
-                    navController.navigate("SignUpScreen") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
+        // Clean up WebSocket when the app exits
+        DisposableEffect(Unit) {
+            onDispose {
+                webSocketState.disconnect()
             }
+        }
 
-            // Observe the authentication state from the ViewModel.
-            LaunchedEffect(authViewModel.isUserSignedUp) {
-                if (authViewModel.isUserSignedUp) {
-                    navController.navigate("home") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
-            }
+        // The app starts in "my_splash" (renamed to avoid confusion)
+        NavHost(navController = navController, startDestination = "my_splash") {
 
+            // The renamed Composable route
+            composable("my_splash") { MySplashScreen(navController) }
 
-        NavHost(navController = navController, startDestination = "splash") {
-            composable("splash") { SplashScreen(navController) }
             composable("home") { HomeScreen(navController) }
+            composable("GamesScreen") {GamesScreen(navController)  }
+            composable("ChessGameScreen") {ChessGameScreen(navController)  }
+            composable("LudoGameScreen"){LudoGameScreen(navController)}
+
             composable("SignUpScreen") {
-                // Pass the callback down to the sign-up screen.
                 SignUpScreen(navController = navController, onGoogleSignUpClick = onGoogleSignUpClick)
             }
-            composable("ChatScreen") { ChatScreen(navController) }
-            composable("AgentCreateScreen"){CreateAgentScreen(navController)}
+            composable(
+                route = "ChatScreen/{characterId}",
+                arguments = listOf(
+                    navArgument("characterId") {
+                        type = NavType.IntType
+                    }
+                )
+            ) { backStackEntry ->
+                // Extract it from the back stack
+                val characterId = backStackEntry
+                    .arguments
+                    ?.getInt("characterId")
+                    ?: throw IllegalStateException("characterId missing!")
+
+                ChatScreen(
+                    navController = navController,
+                    characterId   = characterId
+                )
+            }
+
             composable("AutoOpenCameraScreen") {
                 CameraScreen(navController, onEnableCameraClick = {})
             }
@@ -218,10 +296,15 @@ fun NeuroEdApp(onGoogleSignUpClick: () -> Unit,
             composable("AICharacterListScreen") { AICharacterListScreen(navController) }
             composable("NotificationScreen") { NotificationScreen(navController, onHistoricalClick = {}) }
             composable("SubscriptionScreen") {
-                SubscriptionScreen(navController, onContinueClick = {}, onRestorePurchaseClick = {})
+                SubscriptionScreen(
+                    navController,
+                    onContinueClick = {},
+                    onRestorePurchaseClick = {}
+                )
             }
-            composable("ReelsScreen") { ReelsScreen(navController) }
+//            composable("ReelsScreen") { ReelsScreen(navController) }
             composable("ProfileScreen") { ProfileScreen(navController) }
+
             composable(
                 route = "SyllabusScreen/{id}/{subjectDescription}/{subject}",
                 arguments = listOf(
@@ -313,11 +396,9 @@ fun NeuroEdApp(onGoogleSignUpClick: () -> Unit,
                     totalQuestion = totalQuestion
                 )
             }
-//            composable("TestQuestionScreen") { TestQuestionScreen(navController) }
             composable("SyllabustopicScreen") { SyllabustopicScreen(navController) }
             composable("TestsScreen") { TestsScreen(navController) }
             composable("FillInTheBlankQuestionScreen") { FillInTheBlankQuestionScreen(navController) }
-//            composable("TrueFalseQuestionScreen") { TrueFalseQuestionScreen(navController) }
             composable("ShortAnswerQuestionScreen") { ShortAnswerQuestionScreen(navController) }
             composable("ForgettingCurveScreen") { ForgettingCurveScreen(navController) }
             composable("MeditationScreen") { MeditationScreen(navController) }
@@ -326,25 +407,17 @@ fun NeuroEdApp(onGoogleSignUpClick: () -> Unit,
             composable("ExamScreen") { ExamScreen(navController) }
             composable("RecallingScreen") { RecallingScreen(navController) }
             composable("StoreScreen") { StoreScreen(navController) }
-            composable("SignInScreen"){SignInScreen(navController)}
-            composable("MeditationGenerateScreen") {MeditationGenerateScreen(navController)  }
-            composable("liveSessionScreen"){liveSessionScreen(navController)}
-            composable("PlaygroundScreen"){PlaygroundScreen(navController)}
+            composable("SignInScreen") { SignInScreen(navController) }
+            composable("MeditationGenerateScreen") { MeditationGenerateScreen(navController) }
+            composable("liveSessionScreen") { liveSessionScreen(navController) }
+            composable("PlaygroundScreen") { PlaygroundScreen(navController) }
             composable("UserInfoScreen") { UserInfoScreen(navController) }
-            composable("GetDateOfBirthScreen") {GetDateOfBirthScreen(navController)  }
-            composable("SelectionScreen") { SelectionScreen(navController)  }
-
-            composable(
-                route = "agent_processing_screen"
-            ) {
-                // Call your AgentProcessingScreen composable here
-                AgentProcessingScreen(
-                    // Provide the required onStopClick lambda
-                    onStopClick = {
-                        navController.popBackStack()
-                    }
-                )
-            }
+            composable("GetDateOfBirthScreen") { GetDateOfBirthScreen(navController) }
+            composable("SelectionScreen") { SelectionScreen(navController) }
+            composable("AssignmentScreen"){AssignmentScreen(navController)}
+            composable("LanguagelearnScreen") {LanguageLearnScreen(navController)  }
+            composable("AgentInfoScreen") { AgentInfoScreen(navController) }
+            composable("CharacterCreateScreen"){CharacterCreateScreen(navController)}
 
             composable("verification/{phoneNumber}") { backStackEntry ->
                 val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
@@ -352,28 +425,86 @@ fun NeuroEdApp(onGoogleSignUpClick: () -> Unit,
                     navController = navController,
                     phoneNumber = phoneNumber
                 ) {
-                    // Navigate to your home screen upon successful verification.
                     navController.navigate("home")
                 }
+            }
+
+            composable("AgentCreateScreen") {
+                CreateAgentScreen(navController, webSocketState)
+            }
+            composable(Screen.AgentProcessing.route) {
+                AgentProcessingScreen(
+                    navController = navController,
+                    webSocketState = webSocketState,
+                    onStopClick = { navController.popBackStack() }
+                )
             }
         }
     }
 }
 
-
+// --------------------------------------------------------------
+// Re-named Splash Composable to avoid confusion with
+// androidx.core.splashscreen.SplashScreen
+// --------------------------------------------------------------
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun SplashScreen(navController: NavController) {
+fun MySplashScreen(navController: NavController) {
     val context = LocalContext.current
 
-    // Define a vertical gradient background.
-    val gradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF1E1E1E), // Dark gray top.
-            Color(0xFF343434)  // Slightly lighter gray bottom.
-        )
+    // --- Start of unchanged API and SharedPreferences logic ---
+    val apiService = RetrofitClient.apiService
+    val visitRepository = UservisitRepository(apiService)
+    val userVisitViewModel: UservisitdataViewmodel = viewModel(
+        factory = UservisitdataViewModelFactory(visitRepository)
     )
+//    val testNotificationViewModel: TestNotificationViewModel = viewModel(
+//        factory = TestNotificationViewModelFactory(
+//            TestNotificationModelPredicationRepository(apiService)
+//        )
+//    )
 
-    // Scale and alpha animation states.
+    val sharedPreferences = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+    val currentDate = LocalDate.now().toString()
+    val lastVisitDate = sharedPreferences.getString("last_visit_date", "")
+
+    if (currentDate != lastVisitDate) {
+        sharedPreferences.edit()
+            .putInt("visit_count", 0)
+            .putString("last_visit_date", currentDate)
+            .apply()
+    }
+    val visitCount = sharedPreferences.getInt("visit_count", 0)
+
+    if (visitCount == 0) {
+        val userId = 1
+        val dayOfWeek = LocalDate.now().dayOfWeek.toString()
+        val visitTime = (System.currentTimeMillis() / 1000).toInt()
+
+        Log.d("VisitCount", "First visit detected. Updating visit count to 1.")
+        sharedPreferences.edit().putInt("visit_count", 1).apply()
+        val updatedVisitCount = sharedPreferences.getInt("visit_count", 0)
+        Log.d("VisitCount", "Updated visit count: $updatedVisitCount")
+
+        val userVisitData = UserAppVisitData(
+            userid = userId,
+            day = dayOfWeek,
+            visitCount = updatedVisitCount,
+            visitTime = visitTime,
+            date = currentDate
+        )
+        userVisitViewModel.Uservisitdata(userVisitData)
+//        testNotificationViewModel.fetchTestNotification(userId)
+    } else {
+        val newVisitCount = visitCount + 1
+        sharedPreferences.edit().putInt("visit_count", newVisitCount).apply()
+        Log.d("VisitCount", "Subsequent visit. Today's visit count: $newVisitCount")
+        val userId = 1
+//        testNotificationViewModel.fetchTestNotification(userId)
+    }
+    // --- End of unchanged session logic ---
+
+    // Animations for scaling from 0.8f -> 1f, alpha 0 -> 1
     val scaleState = remember { mutableStateOf(0.8f) }
     LaunchedEffect(Unit) { scaleState.value = 1f }
     val scaleAnim by animateFloatAsState(
@@ -385,88 +516,139 @@ fun SplashScreen(navController: NavController) {
         animationSpec = tween(durationMillis = 1500)
     )
 
-    // Initialize API service and repositories.
-    val apiService = RetrofitClient.apiService
-    val visitRepository = UservisitRepository(apiService)
-    val userVisitViewModel: UservisitdataViewmodel = viewModel(
-        factory = UservisitdataViewModelFactory(visitRepository)
-    )
-    val testNotificationViewModel: TestNotificationViewModel = viewModel(
-        factory = TestNotificationViewModelFactory(
-            TestNotificationModelPredicationRepository(apiService)
+    // Shimmer effect
+    val shimmerTransition = rememberInfiniteTransition()
+    val shimmerOffsetX by shimmerTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 400f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
         )
     )
+    val gradientColors = listOf(Color.Gray, Color.White, Color.Gray)
+    val shimmerBrush = Brush.linearGradient(
+        colors = gradientColors,
+        start = Offset(shimmerOffsetX, 0f),
+        end = Offset(shimmerOffsetX + 200f, 0f)
+    )
 
-    // Session day logic using SharedPreferences.
+    // Time-based delay (e.g., 3 seconds), then navigate
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3000) // 3-second delay
+        val mainPrefs = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+        val isUserSignedUp = mainPrefs.getBoolean("isUserSignedUp", false)
 
-
-        val sharedPreferences = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
-        val currentDate = LocalDate.now().toString()
-        val lastVisitDate = sharedPreferences.getString("last_visit_date", "")
-
-        if (currentDate != lastVisitDate) {
-            sharedPreferences.edit()
-                .putInt("visit_count", 0)
-                .putString("last_visit_date", currentDate)
-                .apply()
-        }
-        val visitCount = sharedPreferences.getInt("visit_count", 0)
-
-        // If it's the first visit of the day, call the API.
-        if (visitCount == 0) {
-            val userId = 1
-            val dayOfWeek = LocalDate.now().dayOfWeek.toString()
-            val visitTime = (System.currentTimeMillis() / 1000).toInt()
-
-            Log.d("VisitCount", "First visit detected. Updating visit count to 1.")
-            sharedPreferences.edit().putInt("visit_count", 1).apply()
-            val updatedVisitCount = sharedPreferences.getInt("visit_count", 0)
-            Log.d("VisitCount", "Updated visit count: $updatedVisitCount")
-
-            // Create the UserAppVisitData object.
-            val userVisitData = UserAppVisitData(
-                userid = userId,
-                day = dayOfWeek,
-                visitCount = updatedVisitCount,
-                visitTime = visitTime,
-                date = currentDate
-            )
-            // Call the user visit API via the view model.
-            userVisitViewModel.Uservisitdata(userVisitData)
-
-            // Trigger the test notification API call.
-            testNotificationViewModel.fetchTestNotification(userId)
+        if (isUserSignedUp) {
+            navController.navigate("home") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+            }
         } else {
-            // Subsequent visits: increment the count.
-            val newVisitCount = visitCount + 1
-            sharedPreferences.edit().putInt("visit_count", newVisitCount).apply()
-            Log.d("VisitCount", "Subsequent visit. Today's visit count: $newVisitCount")
-            val userId = 1
-            testNotificationViewModel.fetchTestNotification(userId)
+            navController.navigate("SignUpScreen") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+            }
         }
+    }
 
-
-    // Splash screen UI.
+    // The UI layout for the splash screen
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(gradient),
-        contentAlignment = Alignment.Center
+            .background(Color.Black)
     ) {
+        // Center "BuddyAI" text with scale & alpha + shimmer
         Text(
-            text = "NeuroEd",
+            text = "BuddyAI",
             modifier = Modifier
+                .align(Alignment.Center)
                 .alpha(alphaAnim)
                 .graphicsLayer {
                     scaleX = scaleAnim
                     scaleY = scaleAnim
-                }
-                .padding(horizontal = 24.dp),
+                },
             style = TextStyle(
+                brush = shimmerBrush,
+                fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
-                fontSize = 40.sp,
-                color = Color.White
+                textAlign = TextAlign.Center
             )
         )
+
+        // "version 1.1" text at bottom with slide-in + fade-in
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter),
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically(
+                    initialOffsetY = { it / 2 },
+                    animationSpec = tween(durationMillis = 1500, delayMillis = 500)
+                ) + fadeIn(
+                    animationSpec = tween(durationMillis = 1500, delayMillis = 500)
+                )
+            ) {
+                Text(
+                    text = "version 1.1",
+                    modifier = Modifier
+                        .padding(bottom = 16.dp),
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Light,
+                        textAlign = TextAlign.Center
+                    )
+                )
+            }
+        }
+    }
+}
+
+
+
+
+@Composable
+fun SessionTrackerHost(
+    userId: Int,
+    repo: SessionRepository,
+) {
+    val vm: SessionViewModel = viewModel(
+        factory = SessionViewModelFactory(repo)
+    )
+    val sessionKey = remember { UUID.randomUUID().toString() }
+
+    // Prepare client‐side timestamps
+    val nowIso = remember {
+        OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+    }
+    val today = remember {
+        LocalDate.now().toString()
+    }
+    val tz = remember {
+        ZoneId.systemDefault().id
+    }
+
+    LaunchedEffect(Unit) {
+        vm.startSession(
+            userId         = userId,
+            sessionKey     = sessionKey,
+            deviceInfo     = emptyMap(),
+            clientTime     = nowIso,
+            clientDate     = today,
+            clientTimezone = tz
+        )
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            vm.endSession(
+                userId     = userId,
+                sessionKey = sessionKey,
+                clientTime = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            )
+        }
     }
 }

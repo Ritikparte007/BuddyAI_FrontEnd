@@ -71,10 +71,12 @@ fun TestsScreen(
         )
     )
 ) {
-    // Theme colors.
+    // Theme colors - pure dark mode
     val backgroundColor = Color(0xFF121212)
     val cardColor = Color(0xFF1E1E1E)
-    val accentColor = Color(0xFF4CAF50)
+    val accentColor = Color(0xFF808080) // Neutral gray instead of blue/green
+    val textColor = Color.White
+    val secondaryTextColor = Color(0xFFB0B0B0)
 
     // Launch API call when the composable is first composed (using userId = 1).
     LaunchedEffect(Unit) {
@@ -88,18 +90,19 @@ fun TestsScreen(
     Scaffold(
         containerColor = backgroundColor,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Tests", color = Color.White, fontSize = 20.sp) },
+            // Left-aligned title in TopAppBar
+            TopAppBar(
+                title = { Text("Tests", color = textColor, fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.White
+                            tint = textColor
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = backgroundColor)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor)
             )
         }
     ) { innerPadding ->
@@ -122,13 +125,13 @@ fun TestsScreen(
                             Icon(
                                 imageVector = Icons.Default.Email,
                                 contentDescription = "No Data",
-                                tint = Color.LightGray,
+                                tint = secondaryTextColor,
                                 modifier = Modifier.size(64.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "No tests available",
-                                color = Color.LightGray,
+                                color = secondaryTextColor,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -160,6 +163,8 @@ fun TestsScreen(
                                 item = item,
                                 cardColor = cardColor,
                                 accentColor = accentColor,
+                                textColor = textColor,
+                                secondaryTextColor = secondaryTextColor,
                                 navController = navController
                             )
                         }
@@ -188,7 +193,7 @@ fun FilterChipRow(
             onClick = { onFilterSelected(TestType.MCQ) },
             label = { Text("MCQ") },
             colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = accentColor,
+                selectedContainerColor = Color(0xFF333333),
                 selectedLabelColor = Color.White,
                 containerColor = Color(0xFF1E1E1E),
                 labelColor = Color.LightGray
@@ -199,7 +204,7 @@ fun FilterChipRow(
             onClick = { onFilterSelected(TestType.TRUE_FALSE) },
             label = { Text("True/False") },
             colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = accentColor,
+                selectedContainerColor = Color(0xFF333333),
                 selectedLabelColor = Color.White,
                 containerColor = Color(0xFF1E1E1E),
                 labelColor = Color.LightGray
@@ -210,7 +215,7 @@ fun FilterChipRow(
             onClick = { onFilterSelected(TestType.FILL_IN_BLANK) },
             label = { Text("Fill") },
             colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = accentColor,
+                selectedContainerColor = Color(0xFF333333),
                 selectedLabelColor = Color.White,
                 containerColor = Color(0xFF1E1E1E),
                 labelColor = Color.LightGray
@@ -238,7 +243,7 @@ fun CountdownTimer(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Brush.horizontalGradient(colors = listOf(textColor, Color(0xFF388E3C))))
+            .background(Color(0xFF2D2D2D))
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
@@ -255,6 +260,8 @@ fun ModernTestCard(
     item: TestItem,
     cardColor: Color,
     accentColor: Color,
+    textColor: Color,
+    secondaryTextColor: Color,
     navController: NavController
 ) {
     val targetProgress = 0.6f  // Dummy progress value (60%)
@@ -272,7 +279,7 @@ fun ModernTestCard(
             .animateContentSize()
             .border(
                 width = 1.dp,
-                brush = Brush.horizontalGradient(colors = listOf(accentColor, Color(0xFF388E3C))),
+                color = Color(0xFF333333),
                 shape = RoundedCornerShape(16.dp)
             ),
         colors = CardDefaults.cardColors(containerColor = cardColor),
@@ -288,7 +295,7 @@ fun ModernTestCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .border(1.dp, accentColor, RoundedCornerShape(4.dp))
+                        .border(1.dp, Color(0xFF333333), RoundedCornerShape(4.dp))
                 ) {
                     // Ensure R.drawable.biology exists in your resources.
                     Image(
@@ -302,7 +309,7 @@ fun ModernTestCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = item.subject,
-                            color = Color.White,
+                            color = textColor,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             modifier = Modifier.weight(1f)
                         )
@@ -313,13 +320,13 @@ fun ModernTestCard(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = "Analysis",
-                                tint = accentColor
+                                tint = secondaryTextColor
                             )
                         }
                     }
                     Text(
                         text = "Difficulty: ${item.difficulty}",
-                        color = Color(0xFFB0B0B0),
+                        color = secondaryTextColor,
                         style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic)
                     )
                 }
@@ -327,7 +334,7 @@ fun ModernTestCard(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Questions: 00/${item.questionCount}",
-                color = Color.White,
+                color = textColor,
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -338,8 +345,8 @@ fun ModernTestCard(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp)),
-                    color = accentColor,
-                    trackColor = Color.Gray
+                    color = Color(0xFF555555),
+                    trackColor = Color(0xFF333333)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -348,7 +355,7 @@ fun ModernTestCard(
                         animatedProgress < 0.7f -> "Medium"
                         else -> "Good"
                     }}",
-                    color = Color.White,
+                    color = textColor,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -361,13 +368,13 @@ fun ModernTestCard(
                 Column(modifier = Modifier.weight(1f)) {
                     CountdownTimer(
                         initialSeconds = 3600,
-                        textColor = accentColor,
+                        textColor = textColor,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = item.note,
-                        color = Color.White,
+                        color = textColor,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -386,35 +393,23 @@ fun ModernTestCard(
                                 "${item.totalQuestion}"
                         navController.navigate(route)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(accentColor, Color(0xFF388E3C))
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "Start Test",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                    }
+                    Text(
+                        text = "Start Test",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Divider(color = Color.Gray, thickness = 1.dp)
+            Divider(color = Color(0xFF333333), thickness = 1.dp)
             TextButton(onClick = { expanded = !expanded }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = if (expanded) "Show Less" else "Show More",
-                        color = accentColor
+                        color = Color.White
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
@@ -423,7 +418,7 @@ fun ModernTestCard(
                         modifier = Modifier
                             .rotate(rotationAngle)
                             .size(16.dp),
-                        tint = accentColor
+                        tint = Color.White
                     )
                 }
             }
@@ -431,12 +426,12 @@ fun ModernTestCard(
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
                         text = "Coins: ${item.coins}",
-                        color = Color.White,
+                        color = textColor,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         text = "Time Left: ${item.timeLeft}",
-                        color = Color.White,
+                        color = textColor,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

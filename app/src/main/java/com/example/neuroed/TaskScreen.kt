@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+//import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
@@ -21,7 +24,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +37,21 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
+
+// Define dark theme colors
+val DarkBackgrounds = Color(0xFF121212)
+val DarkSurfaces = Color(0xFF1E1E1E)
+val DarkPrimary = Color(0xFF6B8AFD)
+val DarkSecondary = Color(0xFF9C27B0)
+val DarkOnBackground = Color(0xFFE1E1E1)
+val DarkOnSurface = Color(0xFFE1E1E1)
+
+// Task card background colors for dark mode
+val DarkGreen = Color(0xFF1E3D2D)
+val DarkBlue = Color(0xFF1A2B42)
+val DarkRed = Color(0xFF3D2828)
+val DarkOrange = Color(0xFF34281E)
+val DarkPurple = Color(0xFF2D1A42)
 
 enum class TaskCategory {
     TASK_LIST, COMPLETED, IN_PROGRESS
@@ -55,30 +75,31 @@ fun TaskScreen(navController: NavController) {
     // State to keep track of the selected task (for bottom sheet)
     val selectedTask = remember { mutableStateOf<Task?>(null) }
 
-    // Main Scaffold
+    // Main Scaffold with dark theme
     Scaffold(
-        topBar = { ModernTopBar(navController, onCalendarClick = { showCalendarDialog.value = true }) },
-        containerColor = MaterialTheme.colorScheme.background
+        topBar = { DarkModeTopBar(navController, onCalendarClick = { showCalendarDialog.value = true }) },
+        containerColor = DarkBackgrounds
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                .background(DarkBackgrounds)
         ) {
-            ModernDateHeader()
-            ModernDaySelectionRow(selectedDayIndex.value) { newIndex ->
+            DarkModeDateHeader()
+            DarkModeDaySelectionRow(selectedDayIndex.value) { newIndex ->
                 selectedDayIndex.value = newIndex
             }
-            TaskCategoryTabs(selectedTaskCategory.value) { newCategory ->
+            DarkModeTaskCategoryTabs(selectedTaskCategory.value) { newCategory ->
                 selectedTaskCategory.value = newCategory
             }
-            MotivationalBanner()
+            DarkModeMotivationalBanner()
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 70.dp)
             ) {
                 items(tasks) { task ->
-                    ModernTaskCard(task = task, onTaskClick = {
+                    DarkModeTaskCard(task = task, onTaskClick = {
                         // When task card is clicked, update the selected task to show bottom sheet.
                         selectedTask.value = task
                     })
@@ -87,7 +108,7 @@ fun TaskScreen(navController: NavController) {
         }
     }
 
-    // DatePickerDialog for calendar selection.
+    // DatePickerDialog with dark theme
     if (showCalendarDialog.value) {
         DatePickerDialog(
             onDismissRequest = { showCalendarDialog.value = false },
@@ -114,39 +135,57 @@ fun TaskScreen(navController: NavController) {
                         }
                     }
                 }) {
-                    Text("OK")
+                    Text("OK", color = DarkPrimary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCalendarDialog.value = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = DarkOnSurface)
                 }
-            }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = DarkSurfaces,
+                titleContentColor = DarkOnSurface,
+                headlineContentColor = DarkOnSurface,
+                weekdayContentColor = DarkOnSurface,
+                subheadContentColor = DarkOnSurface,
+                yearContentColor = DarkOnSurface,
+                currentYearContentColor = DarkPrimary,
+                selectedYearContentColor = DarkOnSurface,
+                selectedYearContainerColor = DarkPrimary,
+                dayContentColor = DarkOnSurface,
+                selectedDayContentColor = DarkSurfaces,
+                selectedDayContainerColor = DarkPrimary,
+                todayContentColor = DarkPrimary,
+                todayDateBorderColor = DarkPrimary
+            )
         ) {
             DatePicker(state = datePickerState)
         }
     }
 
-    // Error dialog for invalid (future) date.
+    // Error dialog with dark theme
     if (showErrorDialog.value) {
         AlertDialog(
             onDismissRequest = { showErrorDialog.value = false },
-            title = { Text("Invalid Date") },
-            text = { Text("Please select a valid date (today or earlier).") },
+            title = { Text("Invalid Date", color = DarkOnSurface) },
+            text = { Text("Please select a valid date (today or earlier).", color = DarkOnSurface) },
             confirmButton = {
                 TextButton(onClick = { showErrorDialog.value = false }) {
-                    Text("OK")
+                    Text("OK", color = DarkPrimary)
                 }
-            }
+            },
+            containerColor = DarkSurfaces
         )
     }
 
-    // Modal Bottom Sheet to show task details.
+    // Modal Bottom Sheet with dark theme
     if (selectedTask.value != null) {
         ModalBottomSheet(
-            onDismissRequest = { selectedTask.value = null }
+            onDismissRequest = { selectedTask.value = null },
+            containerColor = DarkSurfaces
         ) {
-            TaskDetailContent(task = selectedTask.value!!) {
+            DarkModeTaskDetailContent(task = selectedTask.value!!) {
                 // Dismiss button inside bottom sheet.
                 selectedTask.value = null
             }
@@ -156,13 +195,13 @@ fun TaskScreen(navController: NavController) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModernTopBar(navController: NavController, onCalendarClick: () -> Unit) {
-    SmallTopAppBar(
+fun DarkModeTopBar(navController: NavController, onCalendarClick: () -> Unit) {
+    TopAppBar(
         title = {
             Text(
                 "My Schedule",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = DarkOnSurface
             )
         },
         navigationIcon = {
@@ -170,27 +209,34 @@ fun ModernTopBar(navController: NavController, onCalendarClick: () -> Unit) {
                 Icon(
                     Icons.Default.ArrowBack,
                     contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = DarkOnSurface
                 )
             }
         },
         actions = {
+            IconButton(onClick = { /* Notification action */ }) {
+                Icon(
+                    Icons.Outlined.Notifications,
+                    contentDescription = "Notifications",
+                    tint = DarkOnSurface
+                )
+            }
             IconButton(onClick = onCalendarClick) {
                 Icon(
                     Icons.Default.Person,
                     contentDescription = "Calendar",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = DarkOnSurface
                 )
             }
         },
-        colors = TopAppBarDefaults.smallTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = DarkSurfaces
         )
     )
 }
 
 @Composable
-fun ModernDateHeader() {
+fun DarkModeDateHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,46 +246,61 @@ fun ModernDateHeader() {
     ) {
         Text(
             text = "Friday, March 10, 2025",
-            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
+            style = MaterialTheme.typography.bodyLarge.copy(color = DarkOnBackground)
         )
+
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(DarkPrimary.copy(alpha = 0.2f))
+                .padding(8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Person,
+                contentDescription = "Profile",
+                tint = DarkPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }
 
 @Composable
-fun ModernDaySelectionRow(selectedIndex: Int, onDaySelected: (Int) -> Unit) {
+fun DarkModeDaySelectionRow(selectedIndex: Int, onDaySelected: (Int) -> Unit) {
     val days = remember { generatePastDays(14) }
     Row(
         modifier = Modifier
             .horizontalScroll(rememberScrollState())
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         days.forEachIndexed { index, day ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(
                         if (index == selectedIndex)
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                        else Color.Transparent
-                    )
-                    .then(
-                        if (index == selectedIndex)
-                            Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary), RoundedCornerShape(12.dp))
-                        else Modifier
+                            DarkPrimary
+                        else DarkSurfaces
                     )
                     .clickable { onDaySelected(index) }
-                    .padding(12.dp)
+                    .padding(vertical = 12.dp, horizontal = 16.dp)
             ) {
                 Text(
                     text = day.weekday,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = if (index == selectedIndex) Color.Black else DarkOnBackground
+                    )
                 )
                 Text(
                     text = day.date,
-                    style = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onBackground)
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (index == selectedIndex) Color.Black else DarkOnBackground
+                    )
                 )
             }
         }
@@ -247,7 +308,7 @@ fun ModernDaySelectionRow(selectedIndex: Int, onDaySelected: (Int) -> Unit) {
 }
 
 @Composable
-fun TaskCategoryTabs(selectedCategory: TaskCategory, onCategorySelected: (TaskCategory) -> Unit) {
+fun DarkModeTaskCategoryTabs(selectedCategory: TaskCategory, onCategorySelected: (TaskCategory) -> Unit) {
     val tabTitles = listOf("Task List", "Completed", "In Progress")
     val selectedTabIndex = when (selectedCategory) {
         TaskCategory.TASK_LIST -> 0
@@ -256,13 +317,15 @@ fun TaskCategoryTabs(selectedCategory: TaskCategory, onCategorySelected: (TaskCa
     }
     TabRow(
         selectedTabIndex = selectedTabIndex,
-        containerColor = Color.Transparent,
+        containerColor = DarkBackgrounds,
         indicator = { tabPositions ->
             TabRowDefaults.Indicator(
                 Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                color = MaterialTheme.colorScheme.primary
+                color = DarkPrimary,
+                height = 3.dp
             )
-        }
+        },
+        divider = { Divider(color = DarkSurfaces) }
     ) {
         tabTitles.forEachIndexed { index, title ->
             Tab(
@@ -279,97 +342,151 @@ fun TaskCategoryTabs(selectedCategory: TaskCategory, onCategorySelected: (TaskCa
                 text = {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if(index == selectedTabIndex) FontWeight.Bold else FontWeight.Normal
                     )
                 },
-                selectedContentColor = MaterialTheme.colorScheme.primary,
-                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                selectedContentColor = DarkPrimary,
+                unselectedContentColor = DarkOnBackground.copy(alpha = 0.7f)
             )
         }
     }
 }
 
 @Composable
-fun MotivationalBanner() {
+fun DarkModeMotivationalBanner() {
     val tips = listOf(
         "Break your tasks into small wins to boost your dopamine!",
         "Celebrate progress—every small step counts!",
         "Visualize success: completing tasks leads to greater rewards!",
         "Stay consistent: daily achievements build lasting habits!"
     )
-    val tip = tips.random()
+    val tip = remember { tips.random() }
+
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(
-            text = tip,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            modifier = Modifier.padding(16.dp),
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            DarkPrimary.copy(alpha = 0.3f),
+                            DarkSecondary.copy(alpha = 0.3f)
+                        )
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = "Tip",
+                    tint = DarkPrimary,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .padding(end = 12.dp)
+                )
+                Text(
+                    text = tip,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = DarkOnSurface
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun ModernTaskCard(task: Task, onTaskClick: () -> Unit) {
-    // The card changes visually on click (you can add ripple effects automatically).
+fun DarkModeTaskCard(task: Task, onTaskClick: () -> Unit) {
+    // Map task background color to dark theme colors
+    val darkBackgroundColor = when (task.backgroundColor) {
+        Color(0xFFEBF9F0) -> DarkGreen
+        Color(0xFFEAF5FF) -> DarkBlue
+        Color(0xFFFFF1F3) -> DarkRed
+        Color(0xFFFFE0B2) -> DarkOrange
+        Color(0xFFD0F0C0) -> DarkGreen.copy(alpha = 0.7f)
+        else -> DarkPurple
+    }
+
     Card(
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = task.backgroundColor),
+        colors = CardDefaults.cardColors(containerColor = darkBackgroundColor),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable { onTaskClick() } // When tapped, call onTaskClick.
+            .clickable { onTaskClick() }
     ) {
         Row(modifier = Modifier.padding(16.dp)) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = DarkOnSurface
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = task.description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = DarkOnSurface.copy(alpha = 0.7f)
                 )
-                // Row for difficulty and points.
-                Row(modifier = Modifier.padding(top = 4.dp)) {
-                    Text(
-                        text = "Difficulty: ${task.difficulty}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                // Row for difficulty and points
+                Row(modifier = Modifier.padding(top = 8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DarkPrimary.copy(alpha = 0.3f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Difficulty: ${task.difficulty}",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = DarkPrimary
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Points: ${task.points}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DarkSecondary.copy(alpha = 0.3f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Points: ${task.points}",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = DarkSecondary
+                        )
+                    }
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = task.time,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = DarkOnSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row {
                     task.participants.forEach { avatarRes ->
-                        Image(
-                            painter = painterResource(id = avatarRes),
-                            contentDescription = "Participant Avatar",
+                        Box(
                             modifier = Modifier
-                                .size(24.dp)
-                                .padding(end = 4.dp)
-                        )
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, DarkSurfaces, CircleShape)
+                        ) {
+                            Image(
+                                painter = painterResource(id = avatarRes),
+                                contentDescription = "Participant Avatar",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                 }
             }
@@ -378,60 +495,166 @@ fun ModernTaskCard(task: Task, onTaskClick: () -> Unit) {
 }
 
 @Composable
-fun TaskDetailContent(task: Task, onDismiss: () -> Unit) {
-    // Content shown in the bottom sheet.
+fun DarkModeTaskDetailContent(task: Task, onDismiss: () -> Unit) {
+    // Map task background color to dark theme colors
+    val darkBackgroundColor = when (task.backgroundColor) {
+        Color(0xFFEBF9F0) -> DarkGreen
+        Color(0xFFEAF5FF) -> DarkBlue
+        Color(0xFFFFF1F3) -> DarkRed
+        Color(0xFFFFE0B2) -> DarkOrange
+        Color(0xFFD0F0C0) -> DarkGreen.copy(alpha = 0.7f)
+        else -> DarkPurple
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Text(
-            text = task.title,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = task.description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Row {
-            Text(
-                text = "Difficulty: ${task.difficulty}",
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = "Points Earned: ${task.points}",
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.primary
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(darkBackgroundColor)
+                .padding(16.dp)
+        ) {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = task.title,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = DarkOnSurface
+                    )
+                    Text(
+                        text = task.time,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DarkOnSurface.copy(alpha = 0.7f)
+                    )
+                }
+
+                Divider(
+                    color = DarkOnSurface.copy(alpha = 0.1f),
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+
+                Text(
+                    text = task.description,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = DarkOnSurface.copy(alpha = 0.9f)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkPrimary.copy(alpha = 0.3f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Difficulty: ${task.difficulty}",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = DarkPrimary
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DarkSecondary.copy(alpha = 0.3f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Points: ${task.points}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = DarkSecondary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Participants:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DarkOnSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+
+                    task.participants.forEach { avatarRes ->
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, DarkSurfaces, CircleShape)
+                                .padding(2.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = avatarRes),
+                                contentDescription = "Participant Avatar",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        TextButton(onClick = onDismiss) {
-            Text("Close")
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DarkPrimary
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text(
+                    "Close",
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                )
+            }
         }
     }
 }
 
+// Keep the data classes and utility functions the same
 data class Day(
     val weekday: String,
     val date: String,
     val isSelected: Boolean = false
 )
 
-// Updated Task data class with difficulty and points.
 data class Task(
     val title: String,
     val description: String,
     val time: String,
     val participants: List<Int>,
     val backgroundColor: Color,
-    val difficulty: String = "",  // e.g., "Easy", "Medium", "Hard"
-    val points: Int = 0           // points earned for completing the task
+    val difficulty: String = "",
+    val points: Int = 0
 )
 
 fun generatePastDays(numDays: Int): List<Day> {
@@ -444,6 +667,7 @@ fun generatePastDays(numDays: Int): List<Day> {
     }
 }
 
+// Keep the task data but change the background colors to match dark theme
 fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task> {
     return if (category == TaskCategory.TASK_LIST) {
         when (dayIndex) {
@@ -453,7 +677,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Task details for Friday",
                     time = "10:00 AM",
                     participants = listOf(R.drawable.biology, R.drawable.man),
-                    backgroundColor = Color(0xFFEBF9F0),
+                    backgroundColor = Color(0xFFEBF9F0),  // Will be mapped to dark theme colors
                     difficulty = "Hard",
                     points = 50
                 ),
@@ -462,7 +686,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "More tasks for Friday",
                     time = "3:00 PM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFEAF5FF),
+                    backgroundColor = Color(0xFFEAF5FF),  // Will be mapped to dark theme colors
                     difficulty = "Medium",
                     points = 30
                 )
@@ -473,7 +697,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Task details for Thursday",
                     time = "12:00 PM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFFFF1F3),
+                    backgroundColor = Color(0xFFFFF1F3),  // Will be mapped to dark theme colors
                     difficulty = "Easy",
                     points = 20
                 )
@@ -484,7 +708,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Task details for Wednesday",
                     time = "11:00 AM",
                     participants = listOf(R.drawable.biology, R.drawable.man),
-                    backgroundColor = Color(0xFFEAF5FF),
+                    backgroundColor = Color(0xFFEAF5FF),  // Will be mapped to dark theme colors
                     difficulty = "Medium",
                     points = 30
                 )
@@ -495,7 +719,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Task details for Tuesday",
                     time = "10:00 AM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFEBF9F0),
+                    backgroundColor = Color(0xFFEBF9F0),  // Will be mapped to dark theme colors
                     difficulty = "Easy",
                     points = 20
                 )
@@ -506,7 +730,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Task details for Monday",
                     time = "9:00 AM",
                     participants = listOf(R.drawable.biology),
-                    backgroundColor = Color(0xFFFFF1F3),
+                    backgroundColor = Color(0xFFFFF1F3),  // Will be mapped to dark theme colors
                     difficulty = "Medium",
                     points = 30
                 )
@@ -521,7 +745,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Completed task details for Friday",
                     time = "8:00 AM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFD0F0C0),
+                    backgroundColor = Color(0xFFD0F0C0),  // Will be mapped to dark theme colors
                     difficulty = "Hard",
                     points = 50
                 )
@@ -532,7 +756,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "Completed task details for Thursday",
                     time = "8:30 AM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFD0F0C0),
+                    backgroundColor = Color(0xFFD0F0C0),  // Will be mapped to dark theme colors
                     difficulty = "Easy",
                     points = 20
                 )
@@ -547,7 +771,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "In-progress task details for Friday",
                     time = "9:30 AM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFFFE0B2),
+                    backgroundColor = Color(0xFFFFE0B2),  // Will be mapped to dark theme colors
                     difficulty = "Medium",
                     points = 30
                 )
@@ -558,7 +782,7 @@ fun getTasksForDayAndCategory(dayIndex: Int, category: TaskCategory): List<Task>
                     description = "In-progress task details for Thursday",
                     time = "11:30 AM",
                     participants = listOf(R.drawable.man),
-                    backgroundColor = Color(0xFFFFE0B2),
+                    backgroundColor = Color(0xFFFFE0B2),  // Will be mapped to dark theme colors
                     difficulty = "Hard",
                     points = 50
                 )

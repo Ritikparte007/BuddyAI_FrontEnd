@@ -11,6 +11,11 @@ import kotlinx.coroutines.launch
 
 class  SubjectSyllabusSaveViewModel(private val repository: SubjectSyllabusSaveRepository) : ViewModel() {
 
+
+    private val _isSaving = MutableLiveData<Boolean>(false)
+    val isSaving: LiveData<Boolean> = _isSaving
+
+
     private val _saveResponse = MutableLiveData<SubjectSyllabusSaveResponse>()
     val saveResponse: LiveData<SubjectSyllabusSaveResponse> get() = _saveResponse
 

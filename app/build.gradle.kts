@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("kotlin-parcelize")
     id("com.google.gms.google-services")
 }
 
@@ -37,6 +38,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+
+    packagingOptions {
+        pickFirst("**/*.so")
     }
 }
 
@@ -114,10 +119,29 @@ dependencies {
     implementation(libs.client.sdk)
 
     implementation (libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.material.icons.extended)
 
 
+//================== firebase ============
+    implementation (libs.firebase.auth.v2212)
+    implementation (libs.play.services.auth.v2060)
+//    ========================================
+    implementation (libs.jetbrains.kotlinx.coroutines.core)
+    implementation (libs.kotlinx.coroutines.android)
 
+    implementation (libs.face.detection)
 
+    implementation (libs.androidx.camera.core)
+    implementation (libs.androidx.camera.camera2)
+    implementation (libs.androidx.camera.lifecycle)
+    implementation (libs.androidx.camera.video)
+    implementation (libs.androidx.camera.view)
+    implementation (libs.androidx.camera.extensions)
+
+//    =========================================================
+
+    implementation (libs.billing)
+    implementation (libs.billing.ktx)
 
 
 
@@ -139,6 +163,15 @@ dependencies {
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.places)
     implementation(libs.play.services.auth.api.phone)
+    implementation(libs.play.services.mlkit.face.detection)
+    implementation(libs.play.services.fido)
+    implementation(libs.play.services.fido)
+    implementation(libs.play.services.mlkit.text.recognition.common)
+    implementation(libs.play.services.mlkit.text.recognition)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.animation.android)
+    implementation(libs.androidx.animation.android)
+    implementation(libs.androidx.animation.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

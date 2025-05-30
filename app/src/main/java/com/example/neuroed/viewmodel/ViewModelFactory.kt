@@ -14,8 +14,10 @@ import com.example.neuroed.repository.ForgettingCurveRepository
 import com.example.neuroed.repository.GenerateSessionRepositry
 import com.example.neuroed.repository.LearningProgressRepository
 import com.example.neuroed.repository.MeditationListRepository
+import com.example.neuroed.repository.MonthlyProgressRepository
 import com.example.neuroed.repository.PhoneNumberRepository
 import com.example.neuroed.repository.SessionRepository
+import com.example.neuroed.repository.SessionTimeRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingSubtopicRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingTopicRepository
@@ -191,15 +193,14 @@ class CharacterCreateViewModelFactory(
 
 class CharacterGetViewModelFactory(
     private val repository: UserCharacterGet,
-    private val user_id: Int
+    private val userId: Int
 ) : ViewModelProvider.Factory {
-
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(UserCharacterListViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return UserCharacterListViewModel(repository, user_id) as T
+            return UserCharacterListViewModel(repository, userId) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
 
@@ -354,3 +355,30 @@ class SessionViewModelFactory(
     }
 }
 
+
+class SessionTimeViewModelFactory(
+    private val repository: SessionTimeRepository
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        // Check for exactly SessionTimeViewModel
+        return if (modelClass.isAssignableFrom(SessionTimeViewModel::class.java)) {
+            SessionTimeViewModel(repository) as T
+        } else {
+            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        }
+    }
+}
+
+
+class MonthlyProgressViewModelFactory(
+    private val repository: MonthlyProgressRepository
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MonthlyProgressViewModel::class.java)) {
+            return MonthlyProgressViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}

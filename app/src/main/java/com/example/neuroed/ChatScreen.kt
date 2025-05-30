@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,12 +22,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.neuroed.NeuroEdApp.Companion.INVALID_USER_ID
+import com.example.neuroed.model.UserInfoViewModel
 import com.google.gson.JsonParser
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -35,12 +41,13 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONException
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 // Data class for each message in the chat
-data class ChatMessage(
+data class ChatScreenMessage(
     val text: String = "",
     val isUser: Boolean,      // true if it's the current user's message
     val userName: String,     // e.g. "Katy" or "You"
@@ -50,25 +57,99 @@ data class ChatMessage(
     val voiceDuration: String = "" // e.g. "1:04"
 )
 
+// Data class for character information
+data class CharacterInfo(
+    val characterName: String = "",
+    val description: String = "",
+    val firstMessage: String = ""
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(navController: NavController,
-               characterId: Int
+fun ChatScreen(
+    navController: NavController,
+    characterId: Int,
+    userId: String? = null // Add userId parameter from navigation
 ) {
-    // Mutable state for messages (so we can add new ones)
-    val messages = remember { mutableStateListOf<ChatMessage>() }
+    val context = LocalContext.current
 
-    // Example initial messages
-    val initialMessages = listOf(
-        ChatMessage(
-            text = "Hi, good to see you! We're starting work on a presentation for a new product today, right?",
-            isUser = false,
-            userName = "Katy",
-            avatar = R.drawable.man,
-            time = "8:36 PM"
-        )
-    )
-    if (messages.isEmpty()) messages.addAll(initialMessages)
+    // Get UserInfoViewModel to fetch current user ID
+    val userInfoViewModel: UserInfoViewModel = viewModel()
+    val userIdFromViewModel by userInfoViewModel.userId.collectAsState()
+
+    // Load userId when composable starts
+    LaunchedEffect(Unit) {
+        userInfoViewModel.loadUserId(context)
+    }
+
+    // Determine the actual user ID to use - NO DEFAULT FALLBACK
+    val actualUserId = remember(userId, userIdFromViewModel) {
+        when {
+            // 1. Use navigation parameter if available and valid
+            userId != null && userId != "null" && userId.isNotEmpty() -> userId
+            // 2. Use ViewModel user ID if valid
+            userIdFromViewModel != INVALID_USER_ID -> userIdFromViewModel.toString()
+            // 3. Get from SharedPreferences as fallback
+            else -> {
+                val sharedPrefs = context.getSharedPreferences("MyAppPrefs", android.content.Context.MODE_PRIVATE)
+                val storedUserId = sharedPrefs.getInt("userInfoId", INVALID_USER_ID)
+                if (storedUserId != INVALID_USER_ID) {
+                    storedUserId.toString()
+                } else {
+                    null // NO DEFAULT
+                }
+            }
+        }
+    }
+
+    // If no valid user ID found, show error or redirect to login
+    if (actualUserId == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = "User not authenticated",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = "Please login to continue",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = {
+                        navController.navigate("SignUpScreen") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("Login")
+                }
+            }
+        }
+        return
+    }
+
+    // Mutable state for messages (so we can add new ones)
+    val messages = remember { mutableStateListOf<ChatScreenMessage>() }
+
+    // State for character information
+    var characterInfo by remember { mutableStateOf(CharacterInfo()) }
+
+    // State to track if first message has been sent
+    var firstMessageSent by remember { mutableStateOf(false) }
 
     // State for user text input
     var userInput by remember { mutableStateOf(TextFieldValue("")) }
@@ -95,37 +176,80 @@ fun ChatScreen(navController: NavController,
         val webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d("WebSocket", "Connection opened")
+                // Send initial connection message with character ID AND user ID
+                val initialMessage = JSONObject().apply {
+                    put("message", "")
+                    put("character_id", characterId)
+                    put("user_id", actualUserId) // Include user ID
+                    put("action", "connect")
+                }
+                webSocket.send(initialMessage.toString())
             }
+
             override fun onMessage(webSocket: WebSocket, text: String) {
                 Log.d("WebSocket", "Received text: $text")
                 try {
                     val jsonParser = JsonParser()
                     val jsonObject = jsonParser.parse(text).asJsonObject
 
-                    // Get the "message" object and the Agentmessage string
-                    val messageObj = jsonObject.getAsJsonObject("message")
-                    val content = messageObj.get("Agentmessage").asString
-                    val currentTime =
-                        SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                    // Check if it's character info response
+                    if (jsonObject.has("character_info")) {
+                        val charInfo = jsonObject.getAsJsonObject("character_info")
+                        val characterName = charInfo.get("character_name").asString
+                        val description = if (charInfo.has("description")) charInfo.get("description").asString else ""
+                        val firstMessage = charInfo.get("first_message").asString
 
-                    Handler(Looper.getMainLooper()).post {
-                        messages.add(
-                            ChatMessage(
-                                text = content,
-                                isUser = false,
-                                userName = "Server",
-                                avatar = R.drawable.man,
-                                time = currentTime
+                        Handler(Looper.getMainLooper()).post {
+                            characterInfo = CharacterInfo(
+                                characterName = characterName,
+                                description = description,
+                                firstMessage = firstMessage
                             )
-                        )
+
+                            // Add first message to chat if it exists
+                            if (firstMessage.isNotEmpty() && !firstMessageSent) {
+                                val currentTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                                messages.add(
+                                    ChatScreenMessage(
+                                        text = firstMessage,
+                                        isUser = false,
+                                        userName = characterName,
+                                        avatar = R.drawable.man,
+                                        time = currentTime
+                                    )
+                                )
+                                firstMessageSent = true
+                            }
+                        }
+                    }
+                    // Check if it's a regular chat message
+                    else if (jsonObject.has("message")) {
+                        val messageObj = jsonObject.getAsJsonObject("message")
+                        val content = messageObj.get("Agentmessage").asString
+                        val currentTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+
+                        Handler(Looper.getMainLooper()).post {
+                            messages.add(
+                                ChatScreenMessage(
+                                    text = content,
+                                    isUser = false,
+                                    userName = characterInfo.characterName.ifEmpty { "AI" },
+                                    avatar = R.drawable.man,
+                                    time = currentTime
+                                )
+                            )
+                        }
                     }
                 } catch (e: JSONException) {
+                    Log.e("WebSocket", "JSON parsing error: ${e.message}")
                     e.printStackTrace()
                 }
             }
+
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d("WebSocket", "Closing: $code / $reason")
             }
+
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e("WebSocket", "Error: ${t.message}")
             }
@@ -163,7 +287,8 @@ fun ChatScreen(navController: NavController,
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable {
                             // When the user clicks the profile (avatar), navigate to AgentInfoScreen
-                            navController.navigate("AgentInfoScreen")
+                            // Pass both characterId and actualUserId
+                            navController.navigate("AgentInfoScreen/$characterId/$actualUserId")
                         }
                     ) {
                         // Contact's avatar wrapped in a clickable
@@ -177,7 +302,7 @@ fun ChatScreen(navController: NavController,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Aysha Hayes",
+                            text = characterInfo.characterName.ifEmpty { "Loading..." },
                             color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -205,19 +330,26 @@ fun ChatScreen(navController: NavController,
                 onSendClick = {
                     val text = userInput.text
                     if (text.isNotEmpty()) {
+                        val currentTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+
                         // Add the message to the UI list
                         messages.add(
-                            ChatMessage(
+                            ChatScreenMessage(
                                 text = text,
                                 isUser = true,
                                 userName = "You",
                                 avatar = R.drawable.man,
-                                time = "8:45 PM" // or use current time
+                                time = currentTime
                             )
                         )
-                        // Send the message to the backend via WebSocket
-                        val jsonMessage = """{"message": "${userInput.text}"}"""
-                        webSocketRef.value?.send(jsonMessage)
+
+                        // Send the message to the backend via WebSocket with user ID
+                        val jsonMessage = JSONObject().apply {
+                            put("message", text)
+                            put("character_id", characterId)
+                            put("user_id", actualUserId) // Include user ID in messages
+                        }
+                        webSocketRef.value?.send(jsonMessage.toString())
                         userInput = TextFieldValue("")
 
                         // Scrolling is automatically handled by the LaunchedEffect.
@@ -230,7 +362,7 @@ fun ChatScreen(navController: NavController,
 
 // Renders each chat message (bubble + avatar + timestamp)
 @Composable
-fun ChatBubble(message: ChatMessage) {
+fun ChatBubble(message: ChatScreenMessage) {
     val horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start
 
     Column(
@@ -279,7 +411,7 @@ fun ChatBubble(message: ChatMessage) {
 
 // Enhanced chat bubble using Card with clear styling and border
 @Composable
-fun BubbleContent(message: ChatMessage) {
+fun BubbleContent(message: ChatScreenMessage) {
     Card(
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),

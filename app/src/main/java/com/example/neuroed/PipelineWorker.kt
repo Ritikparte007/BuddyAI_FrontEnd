@@ -1,11 +1,11 @@
-package com.example.neuroed
-
 import android.content.Context
-import androidx.work.CoroutineWorker
-import androidx.work.WorkerParameters
+import android.util.Log
+import androidx.work.*
 import com.example.neuroed.model.CallAgent
+import com.example.neuroed.network.ApiHelper
 import com.example.neuroed.network.RetrofitClient
 import retrofit2.HttpException
+import java.util.concurrent.TimeUnit
 
 class PipelineWorker(
     appContext: Context,
@@ -19,14 +19,34 @@ class PipelineWorker(
         val payload = CallAgent(UserId = userId, time = System.currentTimeMillis().toString())
 
         return try {
-            RetrofitClient.apiService.callAgent(userId, payload)
+            // Use ApiHelper to get the token and make the authenticated API call
+            ApiHelper.executeWithToken { token ->
+                RetrofitClient.apiService.callAgent(userId, payload, token)
+            }
+
+            Log.d("PipelineWorker", "Agent called successfully for userId=$userId")
+
+            // ✅ Reschedule itself after 5 seconds
+            scheduleNext(userId)
+
             Result.success()
 
         } catch (e: HttpException) {
-            Result.retry()
-        } catch (e: Exception) {
+            Log.e("PipelineWorker", "HttpException: ${e.message}")
             Result.retry()
         }
+
     }
 
+    private fun scheduleNext(userId: Int) {
+        val inputData = workDataOf("user_id" to userId)
+
+        val request = OneTimeWorkRequestBuilder<PipelineWorker>()
+            .setInitialDelay(10, TimeUnit.MINUTES)
+            .setInputData(inputData)
+            .build()
+
+        WorkManager.getInstance(applicationContext).enqueue(request)
+        Log.d("PipelineWorker", "Rescheduled for 5 seconds later.")
+    }
 }

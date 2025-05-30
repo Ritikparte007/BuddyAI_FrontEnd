@@ -214,13 +214,6 @@ fun DarkModeTopBar(navController: NavController, onCalendarClick: () -> Unit) {
             }
         },
         actions = {
-            IconButton(onClick = { /* Notification action */ }) {
-                Icon(
-                    Icons.Outlined.Notifications,
-                    contentDescription = "Notifications",
-                    tint = DarkOnSurface
-                )
-            }
             IconButton(onClick = onCalendarClick) {
                 Icon(
                     Icons.Default.Person,
@@ -249,20 +242,20 @@ fun DarkModeDateHeader() {
             style = MaterialTheme.typography.bodyLarge.copy(color = DarkOnBackground)
         )
 
-        Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(DarkPrimary.copy(alpha = 0.2f))
-                .padding(8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.Person,
-                contentDescription = "Profile",
-                tint = DarkPrimary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
+//        Box(
+//            modifier = Modifier
+//                .clip(CircleShape)
+//                .background(DarkPrimary.copy(alpha = 0.2f))
+//                .padding(8.dp),
+//            contentAlignment = Alignment.Center
+//        ) {
+//            Icon(
+//                Icons.Default.Person,
+//                contentDescription = "Profile",
+//                tint = DarkPrimary,
+//                modifier = Modifier.size(24.dp)
+//            )
+//        }
     }
 }
 

@@ -22,43 +22,56 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.example.neuroed.ui.theme.AppColors
+
 
 // Color scheme definition
-object AppColors {
-    // Light theme colors
-    val LightBackground = Color.White
-    val LightSurface = Color(0xFFF5F5F5)
-    val LightPrimary = Color(0xFF0095FF)
-    val LightAccent = Color(0xFFDEF5FF)
-    val LightText = Color.Black
-    val LightSecondaryText = Color.DarkGray
 
-    // Dark theme colors
-    val DarkBackground = Color(0xFF121212)
-    val DarkSurface = Color(0xFF1E1E1E)
-    val DarkPrimary = Color(0xFF2196F3)
-    val DarkAccent = Color(0xFF0D47A1)
-    val DarkText = Color.White
-    val DarkSecondaryText = Color(0xFFBBBBBB)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GamesScreen(navController: NavController) {
     val isDarkMode = isSystemInDarkTheme()
 
-    val backgroundColor = if (isDarkMode) AppColors.DarkBackground else AppColors.LightBackground
-    val surfaceColor = if (isDarkMode) AppColors.DarkSurface else AppColors.LightSurface
-    val primaryColor = if (isDarkMode) AppColors.DarkPrimary else AppColors.LightPrimary
-    val accentColor = if (isDarkMode) AppColors.DarkAccent else AppColors.LightAccent
-    val textColor = if (isDarkMode) AppColors.DarkText else AppColors.LightText
-    val secondaryTextColor = if (isDarkMode) AppColors.DarkSecondaryText else AppColors.LightSecondaryText
+    val backgroundColor = if (isDarkMode) {
+        AppColors.Dark.background
+    } else {
+        AppColors.Light.background
+    }
+
+    val surfaceColor = if (isDarkMode) {
+        AppColors.Dark.surface
+    } else {
+        AppColors.Light.surface
+    }
+
+    val primaryColor = if (isDarkMode) {
+        AppColors.Dark.primary
+    } else {
+        AppColors.Light.primary
+    }
+
+    val accentColor = if (isDarkMode) {
+        AppColors.Dark.primaryLight    // या जो भी “accent” के लिए आपने मैप किया है
+    } else {
+        AppColors.Light.primaryLight
+    }
+
+    val textColor = if (isDarkMode) {
+        AppColors.Dark.textDark
+    } else {
+        AppColors.Light.textDark
+    }
+
+    val secondaryTextColor = if (isDarkMode) {
+        AppColors.Dark.textLight
+    } else {
+        AppColors.Light.textLight
+    }
+
 
     val gameMatches = listOf(
         GameMatch("Chess", "BuddyAI", 150, "Areax", 120, 15),
-        GameMatch("Ludo", "BuddyAI", 150, "Areax", 120, 15),
-        GameMatch("Emoji Face-Off", "BuddyAI", 150, "Areax", 120, 15),
-        GameMatch("Emoji Face-Off", "BuddyAI", 150, "Areax", 120, 15)
     )
 
     Scaffold(
@@ -105,8 +118,10 @@ fun GamesScreen(navController: NavController) {
                     onCardClick = {
                         // Navigate to proper game screen based on game type
                         when(match.gameName) {
+
                             "Chess" -> navController.navigate("ChessGameScreen")
                             "Ludo" -> navController.navigate("LudoGameScreen")
+                            "EmojiFaceOffScreen" -> navController.navigate("EmojiFaceOffScreen")
                             else -> { /* Handle other game types */ }
                         }
                     }

@@ -38,6 +38,7 @@ import com.example.neuroed.model.ExamGet
 import com.example.neuroed.model.ForgettingItem
 import com.example.neuroed.model.LearningProgress
 import com.example.neuroed.model.Meditation
+import com.example.neuroed.model.MonthlyProgressData
 import com.example.neuroed.model.QuestionItem
 import com.example.neuroed.model.QuestionResponse
 import com.example.neuroed.model.SessionEndResponse
@@ -57,7 +58,9 @@ import com.example.neuroed.repository.ExamListRepository
 import com.example.neuroed.repository.ForgettingCurveRepository
 import com.example.neuroed.repository.LearningProgressRepository
 import com.example.neuroed.repository.MeditationListRepository
+import com.example.neuroed.repository.MonthlyProgressRepository
 import com.example.neuroed.repository.SessionRepository
+import com.example.neuroed.repository.SessionTimeRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingSubtopicRepository
 import com.example.neuroed.repository.SubjectSyllabusHeadingTopicRepository
@@ -68,6 +71,7 @@ import com.example.neuroed.repository.UserCharacterGet
 import com.example.neuroed.repository.UserProfileRepository
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.asStateFlow
+import java.time.ZoneId
 import java.util.Calendar
 import kotlin.math.abs
 
@@ -210,11 +214,20 @@ class TestListViewModel(private val repository: TestListRepository) : ViewModel(
     fun fetchTestList(userId: Int) {
         viewModelScope.launch {
             try {
-                val result = repository.fetchTestList(userId)
-                _testList.value = result
+                val testItems: List<TestList> = repository.fetchTestList(userId)
+                testItems.forEach { item ->
+                    Log.d("TestListViewModel", "Fetched TestItem → " +
+                            "Subject=${item.Subject}, " +
+                            "Difficulty=${item.Difficulty}, " +
+                            "TotalQuestion=${item.TotalQuestion}, " +
+                            "SolveQuestion=${item.SolveQuestion}, " +
+                            "TimeCountDown=${item.TimeCountDown}, " +
+                            "endTimeMs=${item.endTimeMs}"
+                    )
+                }
+                _testList.value = testItems
             } catch (e: Exception) {
                 Log.e("TestListViewModel", "Error fetching test list", e)
-                // Optionally, handle errors (e.g. update an error state)
             }
         }
     }
@@ -364,30 +377,55 @@ class CharacterCreateViewModel(
 
 
 
-// 2. Fix the ViewModel - there's a typo with the asterisk (*) instead of underscore (_)
 class UserCharacterListViewModel(
     private val repository: UserCharacterGet,
     private val user_id: Int,
 ) : ViewModel() {
+
+    // Character list
     private val _userCharacterList = MutableLiveData<List<CharacterGetData>>()
     val userCharacterList: LiveData<List<CharacterGetData>>
         get() = _userCharacterList
+
+    // Loading state
+    private val _isLoading = MutableLiveData<Boolean>()
+    val isLoading: LiveData<Boolean> = _isLoading
+
+    // Error message
+    private val _errorMessage = MutableLiveData<String?>()
+    val errorMessage: LiveData<String?> = _errorMessage
 
     init {
         fetchUserCharacterList()
     }
 
     private fun fetchUserCharacterList() {
+        _isLoading.value = true
+        _errorMessage.value = null
+
         viewModelScope.launch {
             try {
                 val characterList = repository.CharacterGet(user_id)
                 _userCharacterList.value = characterList
+                _isLoading.value = false
                 Log.d("UserCharVM", "Fetched characters: $characterList")
             } catch (e: Exception) {
                 Log.e("UserCharacterListViewModel", "Error fetching user character list", e)
-                _userCharacterList.value = emptyList() // Set empty list on error to avoid null issues
+                _userCharacterList.value = emptyList() // Set empty list on error
+                _isLoading.value = false
+                _errorMessage.value = e.message ?: "Failed to load characters"
             }
         }
+    }
+
+    // Public method to retry loading
+    fun loadUserCharacters() {
+        fetchUserCharacterList()
+    }
+
+    // Clear error message
+    fun clearError() {
+        _errorMessage.value = null
     }
 }
 
@@ -758,6 +796,55 @@ class SessionViewModel(
                 )
             } catch (e: Exception) {
                 null
+            }
+        }
+    }
+}
+
+
+
+class SessionTimeViewModel(
+    private val repo: SessionTimeRepository
+) : ViewModel() {
+
+    private val _todayMinutes = MutableLiveData(0)
+    val todayMinutes: LiveData<Int> = _todayMinutes
+
+    fun loadTodayMinutes(userId: Int) {
+        viewModelScope.launch {
+            try {
+                val tz = ZoneId.systemDefault().id
+                Log.d("SessionTimeViewModel", "Loading todayMinutes for user=$userId, tz=$tz")
+
+                val minutes = repo.fetchTodayMinutes(userId, tz)
+
+                Log.d("SessionTimeViewModel", "Fetched todayMinutes=$minutes")
+                _todayMinutes.value = minutes
+            } catch (e: Exception) {
+                Log.e("SessionTimeViewModel", "Error loading todayMinutes", e)
+                _todayMinutes.value = 0
+            }
+        }
+    }
+}
+
+class MonthlyProgressViewModel(
+    private val repository: MonthlyProgressRepository
+) : ViewModel() {
+
+    private val _monthlyProgress = MutableLiveData<List<MonthlyProgressData>>(emptyList())
+    val monthlyProgress: LiveData<List<MonthlyProgressData>> = _monthlyProgress
+
+    /**
+     * Fetches the last [months] of data (default 7) for [userId].
+     */
+    fun loadMonthlyProgress(userId: Int, months: Int = 7) {
+        viewModelScope.launch {
+            try {
+                val data = repository.fetchMonthlyProgress(userId, months)
+                _monthlyProgress.value = data
+            } catch (e: Exception) {
+                _monthlyProgress.value = emptyList()
             }
         }
     }

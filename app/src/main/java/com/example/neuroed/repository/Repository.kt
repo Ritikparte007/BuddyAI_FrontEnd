@@ -11,6 +11,7 @@ import com.example.neuroed.model.GenerateSession
 import com.example.neuroed.model.GenerateSessionResponse
 import com.example.neuroed.model.LearningProgress
 import com.example.neuroed.model.Meditation
+import com.example.neuroed.model.MonthlyProgressData
 import com.example.neuroed.model.QuestionResponse
 import com.example.neuroed.model.Saveuserinfo
 import com.example.neuroed.model.Saveuserinforesposne
@@ -25,141 +26,151 @@ import com.example.neuroed.model.TaskGet
 import com.example.neuroed.model.TestCreate
 import com.example.neuroed.model.TestCreateResponse
 import com.example.neuroed.model.TestList
-//import com.example.neuroed.model.TestListResponse
 import com.example.neuroed.model.TestQuestionList
 import com.example.neuroed.model.UserProfile
-//import com.example.neuroed.model.TestQuestionListResponse
 import com.example.neuroed.model.codeverification
 import com.example.neuroed.model.codeverificationresponse
+import com.example.neuroed.network.ApiHelper
 import com.example.neuroed.network.ApiService
-import com.example.neuroed.network.RetrofitClient.apiService
+import com.example.neuroed.network.TestDto
+import com.example.neuroed.network.toTestList
 
-class codeVerificationRepository(private val apiSerializableLambda: ApiService){
+class codeVerificationRepository(private val apiService: ApiService){
     suspend fun codeverificationfun(codeverification: codeverification): codeverificationresponse{
-        return apiService.codeverification(codeverification)
+        return ApiHelper.executeWithToken { token ->
+            apiService.codeverification(codeverification, token)
+        }
     }
 }
 
 class UserinfosaveRepository(private val apiService: ApiService){
     suspend fun userinfosave(Saveuserinfo: Saveuserinfo): Saveuserinforesposne{
-        return apiService.userinfosave(Saveuserinfo)
+        return ApiHelper.executeWithToken { token ->
+            apiService.userinfosave(Saveuserinfo, token)
+        }
     }
 }
-
 
 class GenerateSessionRepositry(private val apiService: ApiService) {
     suspend fun GenerateSessionfun(generateSession: GenerateSession): GenerateSessionResponse {
-        return apiService.GenerateSessionfun(generateSession)
+        return ApiHelper.executeWithToken { token ->
+            apiService.GenerateSessionfun(generateSession, token)
+        }
     }
 }
-
-//=============================================================================================
 
 class TestCreateRepository(private val apiService: ApiService) {
     suspend fun testCreateFun(testCreate: TestCreate): TestCreateResponse {
-        return apiService.testCreate(testCreate.userId, testCreate)
+        return ApiHelper.executeWithToken { token ->
+            apiService.testCreate(testCreate.userId, testCreate, token)
+        }
     }
 }
-
-//=============================================================================================
 
 class TestListRepository(private val apiService: ApiService) {
     suspend fun fetchTestList(userId: Int): List<TestList> {
-        return apiService.getTestList(userId)
+        // 1) API से DTOs लाएं
+        val dtoList: List<TestDto> = ApiHelper.executeWithToken { token ->
+            apiService.getTestList(userId, token)
+        }
+        // 2) DTOs को Domain मॉडल में मैप करें
+        return dtoList.map { it.toTestList() }
     }
 }
-
-//================================ Test Create Question list ==============================
 
 class TestQuestionCreateRepository(private val apiService: ApiService) {
     suspend fun fetchTestQuestionList(testQuestionList: TestQuestionList): QuestionResponse {
-        return apiService.createTestQuestion(testQuestionList)
+        return ApiHelper.executeWithToken { token ->
+            apiService.createTestQuestion(testQuestionList, token)
+        }
     }
 }
 
-//========================================================================================
-
 class SubjectSyllabusHeadingRepository(private val apiService: ApiService){
     suspend fun getSubjectsyllabusHeading(syllabus_id: Int): List<SubjectSyllabusHeading>{
-        return apiService.getSubjectSyllabusHeading(syllabus_id)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getSubjectSyllabusHeading(syllabus_id, token)
+        }
     }
 }
 
 class SubjectSyllabusHeadingTopicRepository(private val apiService: ApiService){
     suspend fun getSubjectSyllabusHeadingTopic(title_id: Int): List<SubjectSyllabusHeadingTopic>{
-        return apiService.getSubjectSyllabustopic(title_id)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getSubjectSyllabustopic(title_id, token)
+        }
     }
 }
 
 class SubjectSyllabusHeadingSubtopicRepository(private val apiService: ApiService){
-    suspend fun getSubjectSyllabusHeadingSubtopic( topic_id: Int): List<SubjectSyllabusHeadingTopicSubtopic>{
-        return apiService.getSubjectSyllabusSubtopic(topic_id)
+    suspend fun getSubjectSyllabusHeadingSubtopic(topic_id: Int): List<SubjectSyllabusHeadingTopicSubtopic>{
+        return ApiHelper.executeWithToken { token ->
+            apiService.getSubjectSyllabusSubtopic(topic_id, token)
+        }
     }
 }
-
-//===============================================================================================
 
 class CharacterCreateRepository(private val apiService: ApiService) {
     suspend fun CharacterCreatefun(CharacterCreate: CharacterCreate): CharacterCreateResponse {
-        return apiService.CreateCharacter(CharacterCreate)
+        return ApiHelper.executeWithToken { token ->
+            apiService.CreateCharacter(CharacterCreate, token)
+        }
     }
 }
-
-//===============================================================================================
 
 // Update your UserCharacterGet repository class
 class UserCharacterGet(private val apiService: ApiService) {
     suspend fun getUserCharacters(userId: Int): List<CharacterGetData> {
-        return apiService.CharacterGetResponse(userId)
+        return ApiHelper.executeWithToken { token ->
+            apiService.CharacterGetResponse(userId, token)
+        }
     }
 
     // Add this method to match what your ViewModel is calling
     suspend fun CharacterGet(userId: Int): List<CharacterGetData> {
-        return apiService.CharacterGetResponse(userId)
+        return ApiHelper.executeWithToken { token ->
+            apiService.CharacterGetResponse(userId, token)
+        }
     }
 }
-
-//===============================================================================================
-
-
-//==============================================================================================
 
 class TaskListRepository(
     private val apiService: ApiService
 ) {
-
     suspend fun getTaskList(userId: Int): List<TaskGet> {
-        return apiService.getTask(userId)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getTask(userId, token)
+        }
     }
 }
-
-//==============================================================================================
 
 class ExamListRepository(
     private val apiService: ApiService
 ){
     suspend fun getExamlist(userId: Int): List<ExamGet>{
-        return apiService.getExam(userId)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getExam(userId, token)
+        }
     }
 }
-
-//==============================================================================================
 
 class AssignmentListRepository(
     private val apiService: ApiService
 ){
     suspend fun getAssignmentlist(userId: Int): List<Assignment>{
-        return apiService.getAssignment(userId)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getAssignment(userId, token)
+        }
     }
 }
-
-//===============================================================================================
 
 class MeditationListRepository(
     private val apiService: ApiService
 ){
     suspend fun getMeditationlist(userId: Int): List<Meditation>{
-        return apiService.getMeditation(userId)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getMeditations(userId, null, token)
+        }
     }
 }
 
@@ -174,10 +185,11 @@ class ForgettingCurveRepository(
      * @param scale one of "minute", "hour", "day", "week", "month"
      */
     suspend fun getForgettingItems(userId: Int, scale: String): List<ForgettingItem> {
-        return apiService.getCurveData(userId, scale)
+        return ApiHelper.executeWithToken { token ->
+            apiService.getCurveData(userId, scale, token)
+        }
     }
 }
-//=============================================================================================
 
 class UserProfileRepository(
     private val apiService: ApiService
@@ -187,13 +199,12 @@ class UserProfileRepository(
      * it into your domain UserProfile object.
      */
     suspend fun getUserProfile(userId: Int): UserProfile {
-        val response = apiService.getUserProfile(userId)
+        val response = ApiHelper.executeWithToken { token ->
+            apiService.getUserProfile(userId, token)
+        }
         return response.toUserProfile()
     }
 }
-
-//=============================================================================================
-
 
 // AttendanceRepository.kt
 class AttendanceRepository(
@@ -207,7 +218,9 @@ class AttendanceRepository(
         month: String,
         year: Int
     ): AttendanceData {
-        val response = apiService.getAttendanceData(userId, month, year)
+        val response = ApiHelper.executeWithToken { token ->
+            apiService.getAttendanceData(userId, month, year, token)
+        }
         return response.toAttendanceData()
     }
 
@@ -219,12 +232,12 @@ class AttendanceRepository(
         userId: Int,
         iso: String
     ): AttendanceData {
-        val response = apiService.markAttendance(userId,iso)
+        val response = ApiHelper.executeWithToken { token ->
+            apiService.markAttendance(userId, iso, token)
+        }
         return response.toAttendanceData()
     }
 }
-
-//================================================================================
 
 class LearningProgressRepository(
     private val apiService: ApiService
@@ -233,15 +246,14 @@ class LearningProgressRepository(
      * Fetches raw LearningProgressResponse and converts it into your domain model.
      */
     suspend fun getLearningProgress(userId: Int): LearningProgress {
-        val response = apiService.getLearningProgress(userId)
+        val response = ApiHelper.executeWithToken { token ->
+            apiService.getLearningProgress(userId, token)
+        }
         return response.toLearningProgress()
     }
 }
 
-
-
 // 2) Repository
-
 class SessionRepository(
     private val api: ApiService
 ) {
@@ -260,7 +272,9 @@ class SessionRepository(
             client_date     = clientDate,
             client_timezone = clientTimezone
         )
-        return api.startSession(userId, req)
+        return ApiHelper.executeWithToken { token ->
+            api.startSession(userId, req, token)
+        }
     }
 
     suspend fun endSession(
@@ -272,12 +286,36 @@ class SessionRepository(
             session_key = sessionKey,
             client_time = clientTime
         )
-        return api.endSession(userId, req)
+        return ApiHelper.executeWithToken { token ->
+            api.endSession(userId, req, token)
+        }
     }
 }
 
+// 3) Repository
+// SessionRepository.kt
+class SessionTimeRepository(private val api: ApiService) {
+    suspend fun fetchTodayMinutes(
+        userId: Int,
+        tz: String
+    ): Int {
+        val resp = ApiHelper.executeWithToken { token ->
+            api.getTodayTimeByTz(userId, tz, token)
+        }
+        // convert total seconds → minutes (floor)
+        return resp.totalSeconds / 60
+    }
+}
 
-
-
-
-
+class MonthlyProgressRepository(
+    private val api: ApiService
+) {
+    suspend fun fetchMonthlyProgress(
+        userId: Int,
+        months: Int = 7
+    ): List<MonthlyProgressData> {
+        return ApiHelper.executeWithToken { token ->
+            api.getMonthlyProgress(userId, months, token)
+        }.toMonthlyProgressList()
+    }
+}

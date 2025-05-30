@@ -1,3 +1,5 @@
+package com.example.neuroed
+
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Handler
@@ -19,6 +21,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -50,8 +53,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-//import androidx.compose.ui.graphics.Stroke
-//import androidx.compose.ui.graphics.drawscope.drawPath
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -71,11 +72,11 @@ import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.neuroed.ChatMessage
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.neuroed.R
 import com.example.neuroed.network.RetrofitClient
 import com.example.neuroed.repository.SubjectlistRepository
@@ -132,7 +133,71 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.focus.FocusRequester
 import kotlinx.coroutines.delay
 import android.content.Context
+import com.example.neuroed.NeuroEdApp
+import com.example.neuroed.model.UserInfoViewModel
+import android.util.Base64
+import android.widget.Toast
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import kotlinx.coroutines.isActive
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.example.neuroed.viewmodel.AzureTTSViewModel
+import com.example.neuroed.viewmodel.TTSState
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 
+// Import Global Voice Manager
+import com.example.neuroed.voice.GlobalVoiceManager
+import com.example.neuroed.voice.VoiceEnabledScreen
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.awaitCancellation
+
+//import android.util.Log
 
 // --------------------
 // Google Fonts Setup (unchanged)
@@ -158,7 +223,7 @@ private val robotoFontFamily = FontFamily(
     )
 )
 
-private val NeuroEdTypography = Typography(
+private val NeuroEdTypographys = Typography(
     bodyLarge = TextStyle(
         fontFamily = robotoFontFamily,
         fontWeight = FontWeight.Normal,
@@ -172,7 +237,7 @@ private val NeuroEdTypography = Typography(
 fun NeuroEdTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = lightColorScheme(),
-        typography = NeuroEdTypography,
+        typography = NeuroEdTypographys,
         content = content
     )
 }
@@ -180,6 +245,7 @@ fun NeuroEdTheme(content: @Composable () -> Unit) {
 // --------------------
 // Compact Mode Switch (Radio Buttons)
 // --------------------
+
 @Composable
 fun CompactModeSwitch(
     selectedMode: String,
@@ -189,7 +255,6 @@ fun CompactModeSwitch(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 20.dp)
-
     ) {
         RadioButton(
             selected = selectedMode == "Anim",
@@ -198,6 +263,7 @@ fun CompactModeSwitch(
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(text = "Animation", fontSize = 10.sp)
+
         Spacer(modifier = Modifier.width(10.dp))
         RadioButton(
             selected = selectedMode == "Canvas",
@@ -206,6 +272,17 @@ fun CompactModeSwitch(
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(text = "Canvas", fontSize = 10.sp)
+
+        Spacer(modifier = Modifier.width(10.dp))
+        RadioButton(
+            selected = selectedMode == "Camera",
+            onClick = { onModeSelected("Camera") },
+            modifier = Modifier.size(5.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(text = "GPT Vision", fontSize = 10.sp)
+
+        Spacer(modifier = Modifier.width(10.dp))
         RadioButton(
             selected = selectedMode == "WebBrowser",
             onClick = { onModeSelected("WebBrowser") },
@@ -216,219 +293,617 @@ fun CompactModeSwitch(
     }
 }
 
-
-
-
-
-// --------------------
-// Playground Screen with Mode Switch
-// --------------------
-
-
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun PlaygroundScreen(
-   navController: NavController
+    navController: NavController
 ) {
-    // State controlling the height ratio of the top card.
-    var topWeight by remember { mutableStateOf(0.5f) }
-    // Total container height in pixels.
-    var containerHeight by remember { mutableStateOf(0) }
-    // Mode: "Anim" for animation, "Canvas" for drawing.
-    var mode by remember { mutableStateOf("Anim") }
-    val density = LocalDensity.current
+    val context = LocalContext.current
 
+    // ✅ Enhanced VoiceEnabledScreen with all callbacks
+    VoiceEnabledScreen(
+        screenName = "PlaygroundScreen",
+        onVoiceResult = { text ->
+            Log.d("PlaygroundVoice", "✅ Voice result received: $text")
+            // Text will be handled in ChatInputBar
+        },
+        onVoiceError = { error ->
+            Log.e("PlaygroundVoice", "❌ Voice error: $error")
+            Toast.makeText(context, "Voice error: $error", Toast.LENGTH_SHORT).show()
+        },
+        onNetworkError = {
+            Log.w("PlaygroundVoice", "📡 Network error")
+            Toast.makeText(context, "Network connection required", Toast.LENGTH_SHORT).show()
+        },
+        onPermissionRequired = {
+            Log.w("PlaygroundVoice", "🔐 Permission required")
+            Toast.makeText(context, "Microphone permission required", Toast.LENGTH_SHORT).show()
+        },
+        silenceTimeoutMs = 20000L, // 20 seconds for playground
+        maxSessionDuration = 600000L, // 10 minutes
+        autoRetryEnabled = true
+    ) { isListening, recognizedText, networkAvailable, startVoice, stopVoice, restartSession ->
 
-    var receivedData by remember { mutableStateOf("") }
-
-    var simulationCode by remember { mutableStateOf("") }
-    var explanationText by remember { mutableStateOf("") }
-
-
-
-    val webSocketRef = remember { mutableStateOf<WebSocket?>(null) }
-    DisposableEffect(Unit) {
-        val client = OkHttpClient()
-        val request = Request.Builder()
-            .url("ws://localhost:8000/api/playground/")
-            .build()
-        val webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d("WebSocket", "Connection opened")
+        // ✅ Enhanced text clearing callback
+        val clearText = remember {
+            {
+                Log.d("PlaygroundVoice", "🧹 Clearing recognized text")
+                GlobalVoiceManager.clearCurrentText()
             }
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    // Parse the incoming JSON text
-                    val jsonObject = JSONObject(text)
-                    // Extract the "message" object from the JSON
-                    val messageObj = jsonObject.getJSONObject("message")
-                    // Extract the explanation text and simulation code (if needed)
-                    val explanation = messageObj.getString("Explanations")
-                    val simulationCode = messageObj.getString("simulation_code")
+        }
 
-                    // Post updates to the UI thread
-                    Handler(Looper.getMainLooper()).post {
-                        // You can update different state variables as needed.
-                        receivedData = simulationCode  // Example: display simulation code in one place
-                        explanationText = explanation    // Display explanation text separately
-                        Log.d("WebSocket", "Simulation Code: $receivedData")
-                    }
-                } catch (e: JSONException) {
-                    e.printStackTrace()
+        // ✅ All your existing playground state management
+        var topWeight by remember { mutableStateOf(0.5f) }
+        var containerHeight by remember { mutableStateOf(0) }
+        var mode by remember { mutableStateOf("Anim") }
+        val density = LocalDensity.current
+
+        var receivedData by remember { mutableStateOf("") }
+        var simulationCode by remember { mutableStateOf("") }
+        var explanationText by remember { mutableStateOf("") }
+
+        // ✅ Azure TTS ViewModel
+        val ttsViewModel: AzureTTSViewModel = viewModel()
+        val ttsState by ttsViewModel.ttsState.collectAsState()
+
+        // ✅ Initialize TTS when screen is first composed
+        LaunchedEffect(Unit) {
+            ttsViewModel.initializeTTS(context)
+        }
+
+        // ✅ AUTO-SPEECH: Start speaking when explanationText changes
+        LaunchedEffect(explanationText) {
+            if (explanationText.isNotEmpty() && explanationText != "Waiting for data...") {
+                delay(500) // Small delay to ensure UI is updated
+                ttsViewModel.speakText(explanationText)
+            }
+        }
+
+        // ✅ WebSocket management with proper cleanup
+        val webSocketRef = remember { mutableStateOf<WebSocket?>(null) }
+        DisposableEffect(Unit) {
+            val client = OkHttpClient()
+            val request = Request.Builder()
+                .url("ws://localhost:8000/api/playground/")
+                .build()
+
+            val webSocket = client.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    Log.d("WebSocket", "Connection opened")
                 }
-            }
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                Log.d("WebSocket", "Closing: $code / $reason")
-            }
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e("WebSocket", "Error: ${t.message}")
-            }
-        })
-        webSocketRef.value = webSocket
-        onDispose { webSocket.close(1000, "CascadingSubjectUnitTopicList disposed") }
-    }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                            MaterialTheme.colorScheme.background
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    try {
+                        val jsonObject = JSONObject(text)
+                        val messageObj = jsonObject.getJSONObject("message")
+                        val explanation = messageObj.getString("Explanations")
+                        val simulationCode = messageObj.getString("simulation_code")
+
+                        Handler(Looper.getMainLooper()).post {
+                            receivedData = simulationCode
+                            explanationText = explanation
+                            Log.d("WebSocket", "Simulation Code: $receivedData")
+                        }
+                    } catch (e: JSONException) {
+                        Log.e("WebSocket", "Error parsing message", e)
+                    }
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    Log.d("WebSocket", "Closing: $code / $reason")
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    Log.e("WebSocket", "Error: ${t.message}")
+                }
+            })
+
+            webSocketRef.value = webSocket
+
+            onDispose {
+                webSocket.close(1000, "PlaygroundScreen disposed")
+                webSocketRef.value = null
+            }
+        }
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                MaterialTheme.colorScheme.background
+                            )
                         )
                     )
-                )
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Very compact mode switch at the top.
-                CompactModeSwitch(selectedMode = mode, onModeSelected = { mode = it })
-                // Container for top card (animation/canvas) and explanation card.
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .onGloballyPositioned { coordinates ->
-                            containerHeight = coordinates.size.height
-                        }
-                ) {
-                    // Top card: displays either Animation (default) or Canvas mode.
-                    Card(
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // ✅ Compact mode switch at the top
+                    CompactModeSwitch(
+                        selectedMode = mode,
+                        onModeSelected = { mode = it }
+                    )
+
+                    // ✅ Container for top card and explanation card
+                    Column(
                         modifier = Modifier
-                            .weight(topWeight)
+                            .weight(1f)
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        elevation = cardElevation(defaultElevation = 16.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = cardColors(
-                            containerColor = if (mode == "Anim") Color.Black else MaterialTheme.colorScheme.surface
-                        )
+                            .onGloballyPositioned { coordinates ->
+                                containerHeight = coordinates.size.height
+                            }
                     ) {
-                        if (mode == "Anim") {
-                            // Animation mode: use AndroidView with WebView.
-                            AndroidView(
-                                modifier = Modifier.fillMaxSize(),
-                                factory = { context ->
-                                    WebView(context).apply {
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        // Initial load (if receivedData is not empty)
-                                        if (receivedData.isNotEmpty()) {
-                                            post {
-                                                loadDataWithBaseURL(null, receivedData, "text/html", "UTF-8", null)
+                        // ✅ Top card: Animation/Canvas/Camera mode
+                        Card(
+                            modifier = Modifier
+                                .weight(topWeight)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            elevation = cardElevation(defaultElevation = 16.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = cardColors(
+                                containerColor = if (mode == "Anim") Color.Black else MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            when (mode) {
+                                "Anim" -> {
+                                    // ✅ Animation mode with WebView
+                                    AndroidView(
+                                        modifier = Modifier.fillMaxSize(),
+                                        factory = { context ->
+                                            WebView(context).apply {
+                                                settings.javaScriptEnabled = true
+                                                settings.domStorageEnabled = true
+                                                settings.allowFileAccess = true
+                                                settings.allowContentAccess = true
+
+                                                if (receivedData.isNotEmpty()) {
+                                                    post {
+                                                        loadDataWithBaseURL(
+                                                            null,
+                                                            receivedData,
+                                                            "text/html",
+                                                            "UTF-8",
+                                                            null
+                                                        )
+                                                    }
+                                                }
                                             }
+                                        },
+                                        update = { webView ->
+                                            if (receivedData.isNotEmpty()) {
+                                                webView.post {
+                                                    webView.loadDataWithBaseURL(
+                                                        null,
+                                                        receivedData,
+                                                        "text/html",
+                                                        "UTF-8",
+                                                        null
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                "Camera" -> {
+                                    // ✅ Camera mode with global voice integration
+                                    CameraPreview(
+                                        onAnalysisResult = { result ->
+                                            explanationText = result
+                                        },
+                                        isRecordingActive = isListening,
+                                        voiceText = recognizedText,
+                                        isSpeechActive = isListening
+                                    )
+                                }
+                                "WebBrowser" -> {
+                                    BrowserSearchScreen()
+                                }
+                                else -> {
+                                    // ✅ Canvas mode
+                                    DrawCanvas(modifier = Modifier.fillMaxSize())
+                                }
+                            }
+                        }
+
+                        // ✅ Draggable divider
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .pointerInput(containerHeight) {
+                                    detectVerticalDragGestures { _, dragAmount ->
+                                        if (containerHeight > 0) {
+                                            val fractionChange = dragAmount / containerHeight
+                                            topWeight = (topWeight + fractionChange).coerceIn(0.2f, 0.8f)
                                         }
                                     }
                                 },
-                                update = { webView ->
-                                    // Reload whenever receivedData changes
-                                    if (receivedData.isNotEmpty()) {
-                                        webView.post {
-                                            webView.loadDataWithBaseURL(null, receivedData, "text/html", "UTF-8", null)
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(64.dp)
+                                    .height(6.dp)
+                                    .background(
+                                        color = Color.Gray.copy(alpha = 0.7f),
+                                        shape = RoundedCornerShape(3.dp)
+                                    )
+                            )
+                        }
+
+                        // ✅ Bottom card with enhanced TTS integration
+                        Card(
+                            modifier = Modifier
+                                .weight(1f - topWeight)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            elevation = cardElevation(defaultElevation = 16.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                // ✅ Enhanced auto-speech status indicator
+                                AnimatedVisibility(
+                                    visible = ttsState == TTSState.SPEAKING,
+                                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // ✅ Animated speaker icon with pulsing effect
+                                        val infiniteTransition = rememberInfiniteTransition(label = "speakerPulse")
+                                        val speakerAlpha by infiniteTransition.animateFloat(
+                                            initialValue = 0.5f,
+                                            targetValue = 1f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(600),
+                                                repeatMode = RepeatMode.Reverse
+                                            ),
+                                            label = "speakerAlpha"
+                                        )
+
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Speaking",
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = speakerAlpha),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+
+                                        Text(
+                                            text = "🔊 Speaking explanation...",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+
+                                        Spacer(modifier = Modifier.weight(1f))
+
+                                        // ✅ Stop speaking button
+                                        IconButton(
+                                            onClick = { ttsViewModel.stopSpeaking() },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Create,
+                                                contentDescription = "Stop Speaking",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(16.dp)
+                                            )
                                         }
                                     }
                                 }
-                            )
-                        }else if (mode == "Camera"){
 
-                        CameraPreview()
-
-                        }else if(mode == "WebBrowser"){
-
-                            BrowserSearchScreen()
-                        }
-                        else {
-                            // Canvas mode: Show a simple drawing canvas.
-                            DrawCanvas(modifier = Modifier.fillMaxSize())
-                        }
-                    }
-                    // Draggable divider.
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(32.dp)
-                            .pointerInput(containerHeight) {
-                                detectVerticalDragGestures { _, dragAmount ->
-                                    if (containerHeight > 0) {
-                                        val fractionChange = dragAmount / containerHeight
-                                        topWeight = (topWeight + fractionChange).coerceIn(0.2f, 0.8f)
+                                // ✅ Enhanced text content area
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .padding(20.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    contentAlignment = Alignment.TopStart
+                                ) {
+                                    if (explanationText.isNotEmpty()) {
+                                        SelectionContainer {
+                                            Text(
+                                                text = explanationText,
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    lineHeight = 24.sp
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    } else {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(32.dp),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text(
+                                                text = "Waiting for data...",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(64.dp)
-                                .height(6.dp)
-                                .background(
-                                    color = Color.Gray.copy(alpha = 0.7f),
-                                    shape = RoundedCornerShape(3.dp)
-                                )
-                        )
-                    }
-                    // Bottom card: Explanation area.
-                    Card(
-                        modifier = Modifier
-                            .weight(1f - topWeight)
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        elevation = cardElevation(defaultElevation = 16.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(20.dp)
-                                .verticalScroll(rememberScrollState()),
-                            contentAlignment = Alignment.TopStart
-                        ) {
-                            Text(
-                                    text = if (explanationText.isNotEmpty()) explanationText  else "Waiting for data...",
-                                    style = MaterialTheme.typography.bodyLarge
-                            )
+
+                                // ✅ Enhanced manual TTS controls
+                                AnimatedVisibility(
+                                    visible = explanationText.isNotEmpty() && ttsState != TTSState.SPEAKING,
+                                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                                ) {
+                                    ManualTTSControls(
+                                        text = explanationText,
+                                        ttsViewModel = ttsViewModel,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
                         }
                     }
+
+                    // ✅ Enhanced ChatInputBar with all voice parameters
+                    ChatInputBar(
+                        webSocketRef = webSocketRef,
+                        onModeToggle = {
+                            mode = if (mode == "Anim") "Camera" else "Anim"
+                        },
+                        // ✅ Complete voice integration
+                        isListening = isListening,
+                        recognizedText = recognizedText,
+                        networkAvailable = networkAvailable,
+                        startVoice = startVoice,
+                        stopVoice = stopVoice,
+                        restartSession = restartSession,
+                        onClearText = clearText,
+                        isCameraMode = mode == "Camera"
+                    )
                 }
-                // Bottom area: Chat input bar.
-                ChatInputBar(
-                    webSocketRef = webSocketRef,
-                    onModeToggle = {
-                    mode = if (mode == "Anim") "Camera" else "Anim"
-                })
             }
         }
     }
 }
 
+//// ✅ Enhanced Manual TTS Controls Component
+//@Composable
+//private fun ManualTTSControls(
+//    text: String,
+//    ttsViewModel: AzureTTSViewModel,
+//    modifier: Modifier = Modifier
+//) {
+//    val ttsState by ttsViewModel.ttsState.collectAsState()
+//
+//    Card(
+//        modifier = modifier.fillMaxWidth(),
+//        colors = CardDefaults.cardColors(
+//            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+//        ),
+//        shape = RoundedCornerShape(12.dp)
+//    ) {
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(12.dp),
+//            horizontalArrangement = Arrangement.SpaceEvenly,
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            // ✅ Play/Pause button
+//            IconButton(
+//                onClick = {
+//                    when (ttsState) {
+//                        TTSState.IDLE -> ttsViewModel.speakText(text)
+//                        TTSState.SPEAKING -> ttsViewModel.pauseSpeaking()
+//                        TTSState.PAUSED -> ttsViewModel.resumeSpeaking()
+//                        else -> ttsViewModel.speakText(text)
+//                    }
+//                },
+//                modifier = Modifier
+//                    .size(40.dp)
+//                    .background(
+//                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+//                        CircleShape
+//                    )
+//            ) {
+//                Icon(
+//                    imageVector = when (ttsState) {
+//                        TTSState.SPEAKING -> Icons.Default.Pause
+//                        TTSState.PAUSED -> Icons.Default.PlayArrow
+//                        else -> Icons.Default.PlayArrow
+//                    },
+//                    contentDescription = when (ttsState) {
+//                        TTSState.SPEAKING -> "Pause"
+//                        TTSState.PAUSED -> "Resume"
+//                        else -> "Play"
+//                    },
+//                    tint = MaterialTheme.colorScheme.primary,
+//                    modifier = Modifier.size(20.dp)
+//                )
+//            }
+//
+//            // ✅ Stop button
+//            IconButton(
+//                onClick = { ttsViewModel.stopSpeaking() },
+//                enabled = ttsState == TTSState.SPEAKING || ttsState == TTSState.PAUSED,
+//                modifier = Modifier
+//                    .size(40.dp)
+//                    .background(
+//                        if (ttsState == TTSState.SPEAKING || ttsState == TTSState.PAUSED)
+//                            MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+//                        else
+//                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+//                        CircleShape
+//                    )
+//            ) {
+//                Icon(
+//                    imageVector = Icons.Default.Stop,
+//                    contentDescription = "Stop",
+//                    tint = if (ttsState == TTSState.SPEAKING || ttsState == TTSState.PAUSED)
+//                        MaterialTheme.colorScheme.error
+//                    else
+//                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+//                    modifier = Modifier.size(20.dp)
+//                )
+//            }
+//
+//            // ✅ TTS status text
+//            Text(
+//                text = when (ttsState) {
+//                    TTSState.IDLE -> "Ready to speak"
+//                    TTSState.INITIALIZING -> "Initializing..."
+//                    TTSState.SPEAKING -> "Speaking..."
+//                    TTSState.PAUSED -> "Paused"
+//                    TTSState.ERROR -> "Error occurred"
+//                },
+//                style = MaterialTheme.typography.labelMedium,
+//                color = when (ttsState) {
+//                    TTSState.ERROR -> MaterialTheme.colorScheme.error
+//                    TTSState.SPEAKING -> MaterialTheme.colorScheme.primary
+//                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+//                },
+//                modifier = Modifier.weight(1f),
+//                textAlign = TextAlign.Center
+//            )
+//        }
+//    }
+//}
 
+// Manual TTS Controls Component
+@Composable
+fun ManualTTSControls(
+    text: String,
+    ttsViewModel: AzureTTSViewModel,
+    modifier: Modifier = Modifier
+) {
+    val ttsState by ttsViewModel.ttsState.collectAsState()
+    val errorMessage by ttsViewModel.errorMessage.collectAsState()
 
+    var showSettings by remember { mutableStateOf(false) }
 
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Main control row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Replay button
+                Button(
+                    onClick = { ttsViewModel.speakText(text) },
+                    enabled = text.isNotBlank() && ttsState != TTSState.SPEAKING,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    ),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            "Replay",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                // Settings toggle
+                TextButton(
+                    onClick = { showSettings = !showSettings },
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        "Settings",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            // Error message
+            errorMessage?.let { error ->
+                Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(4.dp)
+                )
+            }
+
+            // Settings panel
+            if (showSettings) {
+                val speechRate by ttsViewModel.speechRate.collectAsState()
+                val volume by ttsViewModel.volume.collectAsState()
+
+                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    // Speech rate
+                    Text(
+                        text = "Speed: ${String.format("%.1fx", speechRate)}",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Slider(
+                        value = speechRate,
+                        onValueChange = { ttsViewModel.setSpeechRate(it) },
+                        valueRange = 0.5f..2.0f,
+                        steps = 15,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Volume
+                    Text(
+                        text = "Volume: ${(volume * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Slider(
+                        value = volume,
+                        onValueChange = { ttsViewModel.setVolume(it) },
+                        valueRange = 0.0f..1.0f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -530,9 +1005,6 @@ fun BrowserSearchScreen() {
 
 /**
  * Captures a snapshot of the given WebView.
- *
- * @param webView The WebView to capture.
- * @return A Bitmap containing the screenshot, or null if the WebView has no size.
  */
 fun captureWebViewScreenshot(webView: WebView): Bitmap? {
     if (webView.width == 0 || webView.height == 0) return null
@@ -542,17 +1014,135 @@ fun captureWebViewScreenshot(webView: WebView): Bitmap? {
     return bitmap
 }
 
-
-
-
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun CameraPreview(modifier: Modifier = Modifier,  cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA) {
+fun CameraPreview(
+    modifier: Modifier = Modifier,
+    cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
+    onAnalysisResult: (String) -> Unit = {},
+    isRecordingActive: Boolean = false, // From global voice manager
+    voiceText: String = "", // From global voice manager
+    isSpeechActive: Boolean = false // From global voice manager
+) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Accompanist Permissions for handling Camera permission
+    // Enhanced state management for streaming analysis
+    var isRecording by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Streaming analysis states
+    var streamingResults by remember { mutableStateOf(mutableListOf<String>()) }
+    var activeAnalysisCount by remember { mutableStateOf(0) }
+    var totalFramesProcessed by remember { mutableStateOf(0) }
+    var currentStreamingText by remember { mutableStateOf("") }
+
+    // Speech session management - now using global voice manager
+    var isSpeechSessionActive by remember { mutableStateOf(false) }
+
+    // Multiple API endpoints for load balancing
+    val apiConfigs = listOf(
+        APIConfig("gpt-4o-mini", "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", false),
+        APIConfig("gpt-4o", "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", false),
+    )
+
+    // Track API usage
+    val apiUsageTracker = remember { mutableStateMapOf(*apiConfigs.map { it.model to false }.toTypedArray()) }
+
+    // Enhanced ImageCapture for continuous streaming
+    val imageCapture = remember {
+        ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build()
+    }
+
+    // Streaming capture job
+    val streamingCaptureJob = remember { mutableStateOf<Job?>(null) }
+
     val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
+
+    // Enhanced speech monitoring with STREAMING analysis
+    LaunchedEffect(isSpeechActive, isRecording, voiceText) {
+        if (isRecording) {
+            if (isSpeechActive && !isSpeechSessionActive) {
+                // Speech started - begin streaming analysis
+                Log.d("StreamingAnalysis", "Speech started - beginning streaming frame analysis")
+                isSpeechSessionActive = true
+                streamingResults.clear()
+                totalFramesProcessed = 0
+                activeAnalysisCount = 0
+                currentStreamingText = "Starting live analysis..."
+
+                // Start continuous frame capture and analysis
+                streamingCaptureJob.value = MainScope().launch {
+                    while (isActive && isSpeechSessionActive && isSpeechActive) {
+                        captureAndAnalyzeFrame(
+                            imageCapture = imageCapture,
+                            context = context,
+                            voiceText = voiceText,
+                            apiConfigs = apiConfigs,
+                            apiUsageTracker = apiUsageTracker,
+                            totalFramesProcessed = totalFramesProcessed,
+                            onAnalysisStart = { activeAnalysisCount++ },
+                            onAnalysisComplete = { result ->
+                                streamingResults.add(result)
+                                activeAnalysisCount--
+                                totalFramesProcessed++
+                                currentStreamingText = "Frame ${streamingResults.size}: ${streamingResults.last().take(100)}${if (streamingResults.last().length > 100) "..." else ""}"
+                            },
+                            onAnalysisError = { error ->
+                                activeAnalysisCount--
+                                Log.e("StreamingAnalysis", "Frame analysis error: $error")
+                            }
+                        )
+                        delay(800L) // Capture and analyze every 800ms
+                    }
+                }
+
+            } else if (!isSpeechActive && isSpeechSessionActive) {
+                // Speech ended - stop streaming and create final summary
+                Log.d("StreamingAnalysis", "Speech ended - creating final summary from ${streamingResults.size} frame analyses")
+                streamingCaptureJob.value?.cancel()
+                isSpeechSessionActive = false
+
+                if (streamingResults.isNotEmpty() && voiceText.isNotEmpty()) {
+                    // Create comprehensive summary from all streaming results
+                    currentStreamingText = "Creating final summary..."
+                    performFinalSummaryAnalysis(
+                        streamingResults = streamingResults.toList(),
+                        voicePrompt = voiceText,
+                        apiConfigs = apiConfigs,
+                        onSummaryComplete = { summary ->
+                            onAnalysisResult(summary)
+                            currentStreamingText = "Analysis complete ✅"
+                        },
+                        onSummaryError = { error ->
+                            errorMessage = "Summary error: $error"
+                            currentStreamingText = "Summary failed ❌"
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // Monitor recording state
+    LaunchedEffect(isRecordingActive) {
+        if (isRecordingActive && !isRecording) {
+            isRecording = true
+            errorMessage = null
+            streamingResults.clear()
+            currentStreamingText = ""
+            Log.d("StreamingAnalysis", "Streaming recording session started")
+        } else if (!isRecordingActive && isRecording) {
+            streamingCaptureJob.value?.cancel()
+            isRecording = false
+            isSpeechSessionActive = false
+            totalFramesProcessed = 0
+            activeAnalysisCount = 0
+            Log.d("StreamingAnalysis", "Streaming recording session stopped")
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (!cameraPermissionState.status.isGranted) {
@@ -560,42 +1150,506 @@ fun CameraPreview(modifier: Modifier = Modifier,  cameraSelector: CameraSelector
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            streamingCaptureJob.value?.cancel()
+        }
+    }
+
     if (cameraPermissionState.status.isGranted) {
-        AndroidView(
-            modifier = modifier.fillMaxSize(),
-            factory = { ctx ->
-                val previewView = PreviewView(ctx)
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+        Column(modifier = modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(0.7f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            ) {
+                // Enhanced PreviewView
+                val previewView = remember { PreviewView(context) }
 
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        previewView.apply {
+                            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }
+
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder()
+                                .setTargetResolution(android.util.Size(1280, 720))
+                                .build()
+                                .also { it.setSurfaceProvider(previewView.surfaceProvider) }
+
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageCapture
+                                )
+                            } catch (exc: Exception) {
+                                Log.e("CameraPreview", "Camera binding failed", exc)
+                                errorMessage = "Failed to bind camera: ${exc.message}"
+                            }
+                        }, ContextCompat.getMainExecutor(ctx))
+
+                        previewView
+                    }
+                )
+
+                // Enhanced streaming indicators
+                if (isRecording) {
+                    // Main streaming status
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (isSpeechSessionActive) {
+                            // Pulsing indicator when streaming
+                            val infiniteTransition = rememberInfiniteTransition()
+                            val pulseAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.5f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(500),
+                                    repeatMode = RepeatMode.Reverse
+                                )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(Color.White.copy(alpha = pulseAlpha), CircleShape)
+                            )
+                            Text(
+                                text = if (activeAnalysisCount > 0) "STREAMING LIVE" else "READY TO STREAM",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(Color.White, CircleShape)
+                            )
+                            Text(
+                                text = "WAITING",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
                     }
 
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
-                    } catch (exc: Exception) {
-                        Log.e("CameraPreview", "Camera binding failed", exc)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
+                    // Streaming analysis status
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = when {
+                                activeAnalysisCount > 0 -> MaterialTheme.colorScheme.primary
+                                isSpeechSessionActive -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+                            }
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = when {
+                                    activeAnalysisCount > 0 -> "🔄 Analyzing frame ${totalFramesProcessed + 1}..."
+                                    isSpeechSessionActive -> "🎤 Streaming analysis active"
+                                    else -> "🎤 Say something for live analysis"
+                                },
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = if (activeAnalysisCount > 0 || isSpeechSessionActive) Color.White
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
-                previewView
+                            if (voiceText.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "\"$voiceText\"",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                                    color = if (activeAnalysisCount > 0 || isSpeechSessionActive)
+                                        Color.White.copy(alpha = 0.9f)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // Live stats
+                            if (isSpeechSessionActive || totalFramesProcessed > 0) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "📊 Frames: $totalFramesProcessed | Active: $activeAnalysisCount | Results: ${streamingResults.size}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (activeAnalysisCount > 0 || isSpeechSessionActive)
+                                        Color.White.copy(alpha = 0.8f)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Streaming results display
+                if (currentStreamingText.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(16.dp)
+                            .fillMaxWidth(0.95f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    "⚡ Live Analysis",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (activeAnalysisCount > 0) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        "processing $activeAnalysisCount frames...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                currentStreamingText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                lineHeight = 20.sp
+                            )
+                        }
+                    }
+                }
+
+                // Error display
+                errorMessage?.let { message ->
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { errorMessage = null }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                }
             }
-        )
+        }
     } else {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Camera permission is required to use this feature.")
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Button(onClick = { cameraPermissionState.launchPermissionRequest() }) {
+                Text("Grant Camera Permission")
+            }
         }
     }
 }
 
+// Data class for API configuration
+data class APIConfig(
+    val model: String,
+    val apiKey: String,
+    var isBusy: Boolean = false
+)
 
+// STREAMING frame capture and analysis
+suspend fun captureAndAnalyzeFrame(
+    imageCapture: ImageCapture,
+    context: Context,
+    voiceText: String,
+    apiConfigs: List<APIConfig>,
+    apiUsageTracker: MutableMap<String, Boolean>,
+    totalFramesProcessed: Int,
+    onAnalysisStart: () -> Unit,
+    onAnalysisComplete: (String) -> Unit,
+    onAnalysisError: (String) -> Unit
+) {
+    try {
+        suspendCancellableCoroutine<Unit> { continuation ->
+            val mainExecutor = ContextCompat.getMainExecutor(context)
+            imageCapture.takePicture(
+                mainExecutor,
+                object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        try {
+                            val buffer = image.planes[0].buffer
+                            val bytes = ByteArray(buffer.remaining())
+                            buffer.get(bytes)
+                            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 
+                            // Start analysis for this frame
+                            performStreamingAnalysis(
+                                frame = bitmap,
+                                voicePrompt = voiceText,
+                                apiConfigs = apiConfigs,
+                                apiUsageTracker = apiUsageTracker,
+                                frameNumber = totalFramesProcessed + 1,
+                                onAnalysisStart = onAnalysisStart,
+                                onAnalysisComplete = onAnalysisComplete,
+                                onAnalysisError = onAnalysisError
+                            )
 
+                            image.close()
+                            if (continuation.isActive) continuation.resume(Unit) {}
+                        } catch (e: Exception) {
+                            Log.e("CameraPreview", "Error processing streaming frame", e)
+                            if (continuation.isActive) continuation.resume(Unit) {}
+                        }
+                    }
 
+                    override fun onError(exception: ImageCaptureException) {
+                        Log.e("CameraPreview", "Streaming capture failed", exception)
+                        if (continuation.isActive) continuation.resume(Unit) {}
+                    }
+                }
+            )
+        }
+    } catch (e: Exception) {
+        Log.e("CameraPreview", "Error in streaming capture", e)
+    }
+}
 
+// STREAMING Analysis function - analyzes individual frames in real-time
+private fun performStreamingAnalysis(
+    frame: Bitmap,
+    voicePrompt: String,
+    apiConfigs: List<APIConfig>,
+    apiUsageTracker: MutableMap<String, Boolean>,
+    frameNumber: Int,
+    onAnalysisStart: () -> Unit,
+    onAnalysisComplete: (String) -> Unit,
+    onAnalysisError: (String) -> Unit
+) {
+    // Find available API endpoint
+    val availableAPI = apiConfigs.find { !apiUsageTracker[it.model]!! }
+
+    if (availableAPI == null) {
+        onAnalysisError("All APIs busy, skipping frame $frameNumber")
+        return
+    }
+
+    MainScope().launch {
+        try {
+            onAnalysisStart()
+            apiUsageTracker[availableAPI.model] = true // Mark as busy
+
+            // Quick resize for streaming (smaller for speed)
+            val resizedBitmap = resizeBitmapForAnalysis(frame, maxDimension = 384)
+            val byteArrayOutputStream = ByteArrayOutputStream()
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteArrayOutputStream) // Lower quality for speed
+            val base64Image = Base64.encodeToString(byteArrayOutputStream.toByteArray(), Base64.DEFAULT)
+
+            val client = OkHttpClient.Builder()
+                .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val jsonObject = JSONObject().apply {
+                put("model", availableAPI.model)
+                val messagesArray = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        val contentArray = JSONArray().apply {
+                            val promptText = """
+                                Frame $frameNumber analysis for: "$voicePrompt"
+                                
+                                Provide a brief 1-sentence observation of what's most relevant in this frame. Focus on key educational elements, text, or demonstrations visible.
+                            """.trimIndent()
+
+                            put(JSONObject().apply {
+                                put("type", "text")
+                                put("text", promptText)
+                            })
+
+                            put(JSONObject().apply {
+                                put("type", "image_url")
+                                put("image_url", JSONObject().apply {
+                                    put("url", "data:image/jpeg;base64,$base64Image")
+                                })
+                            })
+                        }
+                        put("content", contentArray)
+                    })
+                }
+                put("messages", messagesArray)
+                put("max_tokens", 100) // Very short responses for speed
+                put("temperature", 0.1)
+            }
+
+            val requestBody = jsonObject.toString().toRequestBody("application/json".toMediaTypeOrNull())
+            val request = Request.Builder()
+                .url("https://api.openai.com/v1/chat/completions")
+                .addHeader("Authorization", "Bearer ${availableAPI.apiKey}")
+                .addHeader("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
+
+            withContext(Dispatchers.IO) {
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+
+                if (response.isSuccessful) {
+                    val jsonResponse = JSONObject(responseBody)
+                    val choices = jsonResponse.getJSONArray("choices")
+                    val firstChoice = choices.getJSONObject(0)
+                    val message = firstChoice.getJSONObject("message")
+                    val content = message.getString("content")
+
+                    onAnalysisComplete("Frame $frameNumber: $content")
+                } else {
+                    throw IOException("Frame $frameNumber analysis failed: ${response.code}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("StreamingAnalysis", "Frame $frameNumber analysis error", e)
+            onAnalysisError("Frame $frameNumber: ${e.message}")
+        } finally {
+            apiUsageTracker[availableAPI.model] = false // Mark as available
+        }
+    }
+}
+
+// FINAL Summary Analysis - combines all streaming results
+private fun performFinalSummaryAnalysis(
+    streamingResults: List<String>,
+    voicePrompt: String,
+    apiConfigs: List<APIConfig>,
+    onSummaryComplete: (String) -> Unit,
+    onSummaryError: (String) -> Unit
+): Job {
+    return MainScope().launch {
+        try {
+            // Use the most capable model for final summary
+            val summaryAPI = apiConfigs.find { it.model == "gpt-4o" } ?: apiConfigs.first()
+
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val combinedFrameData = streamingResults.joinToString("\n")
+
+            val jsonObject = JSONObject().apply {
+                put("model", summaryAPI.model)
+                val messagesArray = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", """
+                            User asked: "$voicePrompt"
+                            
+                            I captured ${streamingResults.size} frames during their speech and got these real-time analyses:
+                            
+                            $combinedFrameData
+                            
+                            Please provide a comprehensive, educational summary that:
+                            1. Synthesizes all frame observations into a coherent explanation
+                            2. Directly addresses their question: "$voicePrompt"
+                            3. Provides detailed educational context and explanations
+                            4. Highlights key concepts, formulas, or demonstrations that were visible
+                            5. Gives step-by-step explanations where relevant
+                            
+                            Make it thorough and educational.
+                        """.trimIndent())
+                    })
+                }
+                put("messages", messagesArray)
+                put("max_tokens", 1000)
+                put("temperature", 0.3)
+            }
+
+            val requestBody = jsonObject.toString().toRequestBody("application/json".toMediaTypeOrNull())
+            val request = Request.Builder()
+                .url("https://api.openai.com/v1/chat/completions")
+                .addHeader("Authorization", "Bearer ${summaryAPI.apiKey}")
+                .addHeader("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
+
+            withContext(Dispatchers.IO) {
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+
+                if (response.isSuccessful) {
+                    val jsonResponse = JSONObject(responseBody)
+                    val choices = jsonResponse.getJSONArray("choices")
+                    val firstChoice = choices.getJSONObject(0)
+                    val message = firstChoice.getJSONObject("message")
+                    val content = message.getString("content")
+
+                    onSummaryComplete(content)
+                } else {
+                    throw IOException("Summary analysis failed: ${response.code}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SummaryAnalysis", "Final summary failed", e)
+            onSummaryError(e.message ?: "Unknown summary error")
+        }
+    }
+}
+
+// Optimized bitmap resizing
+private fun resizeBitmapForAnalysis(originalBitmap: Bitmap, maxDimension: Int = 768): Bitmap {
+    val originalWidth = originalBitmap.width
+    val originalHeight = originalBitmap.height
+
+    val scale = when {
+        originalWidth > originalHeight -> maxDimension.toFloat() / originalWidth
+        else -> maxDimension.toFloat() / originalHeight
+    }
+
+    val newWidth = (originalWidth * scale).toInt()
+    val newHeight = (originalHeight * scale).toInt()
+
+    return Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true)
+}
 
 @Composable
 fun DrawCanvas(modifier: Modifier = Modifier) {
@@ -636,10 +1690,6 @@ fun DrawCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-
-
-
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun CascadingSubjectUnitTopicList(
@@ -651,9 +1701,24 @@ fun CascadingSubjectUnitTopicList(
     ),
     onSelection: (selections: Map<String, Map<String, Map<String, List<String>>>>, Any?) -> Unit
 ) {
-    // Fetch subjects on composition.
+    val userInfoViewModel: UserInfoViewModel = viewModel()
+
+    // Get the context
+    val context = LocalContext.current
+
+    // Observe the userId
+    val userId by userInfoViewModel.userId.collectAsState()
+
+    // Load the userId when the composable is first created
     LaunchedEffect(Unit) {
-        subjectListViewModel.fetchSubjectList(userId = 1)
+        userInfoViewModel.loadUserId(context)
+    }
+
+    // Fetch subject list when userId changes
+    LaunchedEffect(userId) {
+        if (userId != NeuroEdApp.INVALID_USER_ID) {
+            subjectListViewModel.fetchSubjectList(userId) // Pass the userId
+        }
     }
     // Observe subjects.
     val subjects by subjectListViewModel.subjectList.collectAsState(initial = emptyList())
@@ -672,8 +1737,6 @@ fun CascadingSubjectUnitTopicList(
     // For subtopics, keyed by topic id, we allow multiple subtopics per topic.
     val selectedSubtopicsDataMap: SnapshotStateMap<Int, SnapshotStateList<SubjectSyllabusHeadingTopicSubtopic>> =
         remember { mutableStateMapOf() }
-
-
 
     val scrollState = rememberScrollState()
 
@@ -946,8 +2009,6 @@ fun CascadingSubjectUnitTopicList(
                     "screenHeight" to screenHeight
                 )
 
-
-
                 if (finalSelections.isNotEmpty()) {
                     onSelection(finalSelections, null)
                     val gson = Gson()
@@ -965,136 +2026,198 @@ fun CascadingSubjectUnitTopicList(
 }
 
 
+
+
+
+
+
+
+
+// ✅ FIXED ChatInputBar for PlaygroundScreen - exactly same pattern as BottomNavigationBar
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatInputBar(
     webSocketRef: MutableState<WebSocket?>,
-    onModeToggle: () -> Unit
+    onModeToggle: () -> Unit,
+    // ✅ Enhanced parameters from VoiceEnabledScreen
+    isListening: Boolean = false,
+    recognizedText: String = "",
+    networkAvailable: Boolean = true,
+    startVoice: () -> Unit = {},
+    stopVoice: () -> Unit = {},
+    restartSession: () -> Unit = {},
+    onClearText: () -> Unit = {}, // ✅ Proper text clearing callback
+    isCameraMode: Boolean = false
 ) {
     var message by remember { mutableStateOf(TextFieldValue("")) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
-
-    // Visual state for mic button (true = ON, false = OFF)
-    var isMicOn by remember { mutableStateOf(false) }
-
-    var isVisible by remember { mutableStateOf(false) }
-    var dragOffset by remember { mutableStateOf(0f) }
     val context = LocalContext.current
 
-    // State for the selected file URI (if any)
+    // ✅ State management
+    var showNetworkError by remember { mutableStateOf(false) }
+    var lastVoiceText by remember { mutableStateOf("") }
+    var sessionStartTime by remember { mutableLongStateOf(0L) }
+    var sessionDuration by remember { mutableLongStateOf(0L) }
+
+    // ✅ Permission handling
+    val recordAudioPermission = rememberPermissionState(
+        permission = Manifest.permission.RECORD_AUDIO
+    )
+
+    // ✅ File and UI state
     var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
+    var showSubjectSheet by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
+    var currentLearnOption by remember { mutableStateOf("Learn") }
 
-    // File picker launcher for selecting all file types
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { selectedFileUri = it }
-    }
-
+    // ✅ Animation and UI calculations
     val borderColor by animateColorAsState(
-        targetValue = if (message.text.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-        animationSpec = tween(durationMillis = 300)
+        targetValue = if (message.text.isEmpty())
+            MaterialTheme.colorScheme.outline
+        else
+            MaterialTheme.colorScheme.primary,
+        animationSpec = tween(durationMillis = 300),
+        label = "borderColor"
     )
 
     val density = LocalDensity.current
     val keyboardHeight = WindowInsets.ime.getBottom(density)
     val isKeyboardOpen = keyboardHeight > 0
 
-    // States for modal bottom sheet and dialog
-    var showSubjectSheet by remember { mutableStateOf(false) }
-    var showDialog by remember { mutableStateOf(false) }
-    var currentLearnOption by remember { mutableStateOf("Learn") }
+    // ✅ File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { selectedFileUri = it }
+    }
 
-    // Load icon resources
+    // ✅ Load vector resources safely
     val micOn = ImageVector.vectorResource(id = R.drawable.baseline_mic_24)
     val micOff = ImageVector.vectorResource(id = R.drawable.baseline_mic_off_24)
     val camera = ImageVector.vectorResource(id = R.drawable.baseline_photo_camera_24)
     val book = ImageVector.vectorResource(id = R.drawable.baseline_book_24)
     val file = ImageVector.vectorResource(id = R.drawable.baseline_attach_file_24)
 
-    val recordAudioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
-
-    // Create recognizer for regular recording
-    val regularSpeechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
-
-    // Regular speech input for when user explicitly uses mic
-    var regularSpeechInput by remember { mutableStateOf("") }
-
-    // Function for regular recording with normal feedback
-    fun startRegularListening(recognitionListener: RecognitionListener) {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        }
-        regularSpeechRecognizer.setRecognitionListener(recognitionListener)
-        regularSpeechRecognizer.startListening(intent)
+    // ✅ Debug logging with throttling
+    LaunchedEffect(isListening, recognizedText) {
+        Log.d("ChatInputBar", "🔄 State update - isListening: $isListening, text: '${recognizedText.take(30)}${if(recognizedText.length > 30) "..." else ""}'")
     }
 
-    // Listener for regular/visible recording when mic is ON
-    val regularListener = remember {
-        object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let {
-                    regularSpeechInput = it[0]
-                    // Update message text field when mic is ON
-                    message = TextFieldValue(it[0])
-                }
-                if (isMicOn) startRegularListening(this)
-            }
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let {
-                    regularSpeechInput = it[0]
-                    // Update message text field when mic is ON
-                    message = TextFieldValue(it[0])
-                }
-            }
-
-            override fun onError(error: Int) {
-                if (isMicOn && error != SpeechRecognizer.ERROR_NO_MATCH)
-                    startRegularListening(this)
-            }
-
-            override fun onEndOfSpeech() {
-                if (isMicOn) startRegularListening(this)
-            }
-
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
+    // ✅ Network status monitoring
+    LaunchedEffect(networkAvailable) {
+        if (!networkAvailable && isListening) {
+            showNetworkError = true
+            stopVoice()
+        } else if (networkAvailable) {
+            showNetworkError = false
         }
     }
 
-    // Request permission and start recording only when mic is turned on.
-    LaunchedEffect(isMicOn) {
-        if (isMicOn) {
-            if (recordAudioPermission.status.isGranted) {
-                startRegularListening(regularListener)
-            } else {
-                recordAudioPermission.launchPermissionRequest()
-                isMicOn = false
+    // ✅ Enhanced voice text update with proper synchronization
+    LaunchedEffect(recognizedText) {
+        if (recognizedText.isNotEmpty() &&
+            recognizedText != lastVoiceText &&
+            recognizedText != message.text) {
+
+            Log.d("ChatInputBar", "🎤 Updating text field with voice: $recognizedText")
+            lastVoiceText = recognizedText
+
+            message = TextFieldValue(
+                text = recognizedText,
+                selection = androidx.compose.ui.text.TextRange(recognizedText.length)
+            )
+        }
+    }
+
+    // ✅ Keyboard interaction handling
+    LaunchedEffect(isKeyboardOpen) {
+        if (isKeyboardOpen && isListening) {
+            Log.d("ChatInputBar", "⌨️ Keyboard opened, stopping voice")
+            stopVoice()
+        }
+    }
+
+    // ✅ Session duration tracking with proper cleanup
+    LaunchedEffect(isListening) {
+        if (isListening) {
+            sessionStartTime = System.currentTimeMillis()
+            val job = launch {
+                while (isActive && isListening) {
+                    delay(1000)
+                    sessionDuration = System.currentTimeMillis() - sessionStartTime
+                }
+            }
+
+            // Cleanup when listening stops
+            try {
+                awaitCancellation()
+            } finally {
+                job.cancel()
+                sessionDuration = 0L
             }
         } else {
-            // Stop regular recording when mic is off.
-            regularSpeechRecognizer.stopListening()
+            sessionDuration = 0L
+            sessionStartTime = 0L
         }
     }
 
-    // When keyboard opens, force mic OFF and clear any active recording.
-    LaunchedEffect(isKeyboardOpen) {
-        if (isKeyboardOpen) {
-            isMicOn = false
-            regularSpeechRecognizer.stopListening()
+    // ✅ Enhanced voice button click handler
+    val handleVoiceButtonClick = remember {
+        {
+            Log.d("ChatInputBar", "🎤 Voice button clicked - State: listening=$isListening, permission=${recordAudioPermission.status.isGranted}, network=$networkAvailable")
+
+            when {
+                !recordAudioPermission.status.isGranted -> {
+                    Log.d("ChatInputBar", "🔒 Requesting audio permission")
+                    recordAudioPermission.launchPermissionRequest()
+                }
+                !networkAvailable -> {
+                    Log.w("ChatInputBar", "📡 No network available")
+                    showNetworkError = true
+                }
+                isListening -> {
+                    Log.d("ChatInputBar", "🛑 Stopping voice recognition")
+                    stopVoice()
+                }
+                else -> {
+                    Log.d("ChatInputBar", "▶️ Starting voice session")
+                    // Clear states before starting
+                    message = TextFieldValue("")
+                    lastVoiceText = ""
+                    focusManager.clearFocus()
+                    showNetworkError = false
+
+                    // Clear through proper callback
+                    onClearText()
+                    startVoice()
+                }
+            }
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            // Cleanup resources
-            regularSpeechRecognizer.destroy()
+    // ✅ Send message function with proper cleanup
+    val handleSendMessage = remember {
+        {
+            if (message.text.isNotEmpty()) {
+                val messageToSend = message.text.trim()
+                Log.d("ChatInputBar", "📤 Sending message: $messageToSend")
+
+                try {
+                    webSocketRef.value?.send(messageToSend)
+
+                    // Clear states after successful send
+                    message = TextFieldValue("")
+                    lastVoiceText = ""
+                    onClearText()
+                    focusManager.clearFocus()
+
+                } catch (e: Exception) {
+                    Log.e("ChatInputBar", "❌ Error sending message", e)
+                    // Could show error toast here
+                }
+            }
         }
     }
 
@@ -1103,9 +2226,69 @@ fun ChatInputBar(
             .fillMaxWidth()
             .padding(12.dp)
     ) {
+
+        // ✅ Network error banner
+        AnimatedVisibility(
+            visible = showNetworkError,
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Network connection required for voice input",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { showNetworkError = false },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ✅ Enhanced text field
         OutlinedTextField(
             value = message,
-            onValueChange = { message = it },
+            onValueChange = { newValue ->
+                Log.d("ChatInputBar", "✏️ Text changed: ${newValue.text}")
+                message = newValue
+
+                // Clear voice text if user types manually
+                if (newValue.text != recognizedText && newValue.text != lastVoiceText) {
+                    lastVoiceText = ""
+                    if (newValue.text.isNotEmpty()) {
+                        onClearText()
+                    }
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 40.dp, max = 120.dp)
@@ -1130,7 +2313,6 @@ fun ChatInputBar(
                                 Icon(
                                     imageVector = Icons.Filled.Close,
                                     contentDescription = "Remove File",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(12.dp)
                                 )
                             }
@@ -1147,19 +2329,34 @@ fun ChatInputBar(
             },
             placeholder = {
                 Text(
-                    text = "Message ChatGPT",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = when {
+                        !networkAvailable -> "🌐 Network required"
+                        isListening -> "🎤 Listening..."
+                        recognizedText.isNotEmpty() -> "Voice input received"
+                        else -> "Message ChatGPT"
+                    },
+                    color = when {
+                        !networkAvailable -> MaterialTheme.colorScheme.error
+                        isListening -> MaterialTheme.colorScheme.primary
+                        recognizedText.isNotEmpty() -> MaterialTheme.colorScheme.secondary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Start
                 )
             },
             trailingIcon = {
-                IconButton(onClick = { focusManager.clearFocus() }) {
+                IconButton(
+                    onClick = handleSendMessage,
+                    enabled = message.text.isNotEmpty() && networkAvailable
+                ) {
                     Icon(
                         imageVector = Icons.Filled.Send,
                         contentDescription = "Send Message",
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (message.text.isNotEmpty() && networkAvailable)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 }
             },
@@ -1177,6 +2374,7 @@ fun ChatInputBar(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // ✅ Enhanced action buttons (only when keyboard is closed)
         if (!isKeyboardOpen) {
             Row(
                 modifier = Modifier
@@ -1189,33 +2387,75 @@ fun ChatInputBar(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Mic On/Off Button - Always show according to isMicOn state
+                // ✅ Enhanced Mic Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(
-                        onClick = {
-                            // Toggle mic state when clicked
-                            isMicOn = !isMicOn
-                            if (!recordAudioPermission.status.isGranted) {
-                                recordAudioPermission.launchPermissionRequest()
-                            }
+                    val micButtonColor by animateColorAsState(
+                        targetValue = when {
+                            !recordAudioPermission.status.isGranted ->
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                            !networkAvailable ->
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                            isListening ->
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            else -> Color.Transparent
                         },
-                        modifier = Modifier.size(36.dp)
+                        animationSpec = tween(300),
+                        label = "micButtonColor"
+                    )
+
+                    IconButton(
+                        onClick = handleVoiceButtonClick,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                color = micButtonColor,
+                                shape = CircleShape
+                            )
                     ) {
                         Icon(
-                            imageVector = if (isMicOn) micOn else micOff,
-                            contentDescription = if (isMicOn) "Mic On" else "Mic Off",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = when {
+                                !recordAudioPermission.status.isGranted || !networkAvailable -> micOff
+                                isListening -> micOn
+                                else -> micOff
+                            },
+                            contentDescription = when {
+                                !recordAudioPermission.status.isGranted -> "Permission Required"
+                                !networkAvailable -> "Network Required"
+                                isListening -> "Stop Recording"
+                                else -> "Start Recording"
+                            },
+                            modifier = Modifier.size(20.dp),
+                            tint = when {
+                                !recordAudioPermission.status.isGranted || !networkAvailable ->
+                                    MaterialTheme.colorScheme.error
+                                isListening ->
+                                    MaterialTheme.colorScheme.primary
+                                else ->
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
+
                     Text(
-                        text = if (isMicOn) "On" else "Off",
+                        text = when {
+                            !recordAudioPermission.status.isGranted -> "No Perm"
+                            !networkAvailable -> "No Net"
+                            isListening -> "On"
+                            else -> "Off"
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = when {
+                            !recordAudioPermission.status.isGranted || !networkAvailable ->
+                                MaterialTheme.colorScheme.error
+                            isListening ->
+                                MaterialTheme.colorScheme.primary
+                            else ->
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
 
-                // Learn Button
+                // ✅ Learn Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { showDialog = true },
@@ -1224,18 +2464,16 @@ fun ChatInputBar(
                         Icon(
                             imageVector = Icons.Filled.PlayArrow,
                             contentDescription = "Learn",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Text(
                         text = currentLearnOption,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
 
-                // File Selection Button
+                // ✅ File Selection Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { filePickerLauncher.launch("*/*") },
@@ -1244,18 +2482,16 @@ fun ChatInputBar(
                         Icon(
                             imageVector = file,
                             contentDescription = "Select File",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Text(
                         text = "File",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
 
-                // Camera Toggle Button
+                // ✅ Camera Toggle Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { onModeToggle() },
@@ -1264,18 +2500,16 @@ fun ChatInputBar(
                         Icon(
                             imageVector = camera,
                             contentDescription = "Toggle Camera/Animation",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Text(
-                        text = "Camera",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        text = if (isCameraMode) "Camera" else "Animation",
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
 
-                // Subject Selection Button
+                // ✅ Subject Selection Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { showSubjectSheet = true },
@@ -1284,20 +2518,195 @@ fun ChatInputBar(
                         Icon(
                             imageVector = book,
                             contentDescription = "Select Subject/Unit/Topic",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Text(
                         text = "Subject",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+        }
+
+        // ✅ Enhanced voice status indicator
+        AnimatedVisibility(
+            visible = isListening,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // ✅ Enhanced pulsing indicator
+                    val infiniteTransition = rememberInfiniteTransition(label = "voicePulse")
+                    val pulseAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(800, easing = EaseInOutCubic),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "pulseAlpha"
+                    )
+
+                    val pulseScale by infiniteTransition.animateFloat(
+                        initialValue = 0.8f,
+                        targetValue = 1.2f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000, easing = EaseInOutCubic),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "pulseScale"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .scale(pulseScale)
+                            .background(
+                                MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha),
+                                CircleShape
+                            )
+                    )
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "🎤 Listening for speech...",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+
+                        // ✅ Session duration and current text
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (sessionDuration > 0) {
+                                val seconds = sessionDuration / 1000
+                                Text(
+                                    text = "(${seconds}s)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
+
+                            if (recognizedText.isNotEmpty()) {
+                                Text(
+                                    text = "\"${recognizedText.take(40)}${if (recognizedText.length > 40) "..." else ""}\"",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontStyle = FontStyle.Italic),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    // ✅ Control buttons
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Restart button
+                        IconButton(
+                            onClick = {
+                                Log.d("ChatInputBar", "🔄 Restart session")
+                                restartSession()
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Restart Session",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // Stop button
+                        IconButton(
+                            onClick = {
+                                Log.d("ChatInputBar", "🛑 Stop listening")
+                                stopVoice()
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Stop Listening",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ✅ Permission denied message
+        AnimatedVisibility(
+            visible = !recordAudioPermission.status.isGranted &&
+                    recordAudioPermission.status.shouldShowRationale,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Microphone permission required for voice input",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = { recordAudioPermission.launchPermissionRequest() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text(
+                            "Grant",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
         }
     }
 
+    // ✅ Modal Bottom Sheet for Subject Selection
     if (showSubjectSheet) {
         ModalBottomSheet(
             onDismissRequest = { showSubjectSheet = false }
@@ -1311,6 +2720,7 @@ fun ChatInputBar(
         }
     }
 
+    // ✅ Learn Option Dialog
     if (showDialog) {
         LearnOptionPopup(
             onDismiss = { showDialog = false },
@@ -1322,6 +2732,7 @@ fun ChatInputBar(
         )
     }
 }
+
 
 
 
@@ -1404,77 +2815,4 @@ fun LearnOptionPopup(
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp)
     )
-}
-
-
-
-@OptIn(ExperimentalPermissionsApi::class)
-@Composable
-fun SpeechToTextConverter(
-    onTextChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    var isListening by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    // Request microphone permission
-    val permissionState = rememberPermissionState(permission = Manifest.permission.RECORD_AUDIO)
-
-    // Speech recognizer setup
-    val speechRecognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
-        } else {
-            null
-        }
-    }
-
-    val listener = remember {
-        object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                isListening = true
-            }
-
-            override fun onResults(results: Bundle?) {
-                results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let {
-                    onTextChange(it[0])
-                }
-                isListening = false
-            }
-
-            override fun onError(error: Int) {
-                errorMessage = when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognition match found"
-                    SpeechRecognizer.ERROR_CLIENT -> "Client side error"
-                    else -> "Error: $error"
-                }
-                isListening = false
-            }
-
-            // Other required overrides (empty implementations)
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        }
-    }
-
-    // Cleanup on composable disposal
-    DisposableEffect(speechRecognizer) {
-        speechRecognizer?.setRecognitionListener(listener)
-        onDispose {
-            speechRecognizer?.destroy()
-        }
-    }
-
-    // Permission handling
-    LaunchedEffect(permissionState.status) {
-        if (!permissionState.status.isGranted && !permissionState.status.shouldShowRationale) {
-            permissionState.launchPermissionRequest()
-        }
-    }
-
 }

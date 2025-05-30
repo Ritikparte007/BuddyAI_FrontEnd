@@ -34,6 +34,7 @@ import okhttp3.*
 import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import okhttp3.Request
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable

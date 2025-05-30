@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +32,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,7 +41,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.neuroed.NeuroEdApp.Companion.INVALID_USER_ID
 import com.example.neuroed.model.CharacterCreate
+import com.example.neuroed.model.UserInfoViewModel
 import com.example.neuroed.network.RetrofitClient
 import com.example.neuroed.repository.CharacterCreateRepository
 import com.example.neuroed.viewmodel.CharacterCreateViewModel
@@ -70,10 +74,78 @@ val SwitchActiveColor = Color(0xFF6C63FF)
 @Composable
 fun CharacterCreateScreen(
     navController: NavController,
+    userId: String? = null // Add userId parameter from navigation
 ) {
-    // For demo purposes, we assume a default UserId.
-    // In a real-world scenario, fetch the actual UserId from your auth/session mechanism.
-    val demoUserId = 1
+    val context = LocalContext.current
+
+    // Get UserInfoViewModel to fetch current user ID
+    val userInfoViewModel: UserInfoViewModel = viewModel()
+    val userIdFromViewModel by userInfoViewModel.userId.collectAsState()
+
+    // Load userId when composable starts
+    LaunchedEffect(Unit) {
+        userInfoViewModel.loadUserId(context)
+    }
+
+    // Determine the actual user ID to use - NO DEFAULT FALLBACK
+    val actualUserId = remember(userId, userIdFromViewModel) {
+        when {
+            // 1. Use navigation parameter if available and valid
+            userId != null && userId != "null" && userId.isNotEmpty() -> userId.toIntOrNull()
+            // 2. Use ViewModel user ID if valid
+            userIdFromViewModel != INVALID_USER_ID -> userIdFromViewModel
+            // 3. Get from SharedPreferences as fallback
+            else -> {
+                val sharedPrefs = context.getSharedPreferences("MyAppPrefs", android.content.Context.MODE_PRIVATE)
+                val storedUserId = sharedPrefs.getInt("userInfoId", INVALID_USER_ID)
+                if (storedUserId != INVALID_USER_ID) {
+                    storedUserId
+                } else {
+                    null // NO DEFAULT
+                }
+            }
+        }
+    }
+
+    // If no valid user ID found, show error or redirect to login
+    if (actualUserId == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = "User not authenticated",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = "Please login to continue",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = {
+                        navController.navigate("SignUpScreen") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("Login")
+                }
+            }
+        }
+        return
+    }
 
     // Create an instance of your ApiService first.
     val apiService = RetrofitClient.apiService
@@ -175,6 +247,34 @@ fun CharacterCreateScreen(
                             .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Display current user info
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = AppDarkColorScheme.surface
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = "User",
+                                    tint = AppDarkColorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    "Creating as User ID: $actualUserId",
+                                    color = Color.White,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
                         // Enhanced profile avatar area with animation and better shadows
                         Box(
                             modifier = Modifier
@@ -315,7 +415,7 @@ fun CharacterCreateScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Divider(
+                            HorizontalDivider(
                                 color = Color.White.copy(alpha = 0.2f),
                                 modifier = Modifier.weight(1f)
                             )
@@ -325,7 +425,7 @@ fun CharacterCreateScreen(
                                 color = Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
-                            Divider(
+                            HorizontalDivider(
                                 color = Color.White.copy(alpha = 0.2f),
                                 modifier = Modifier.weight(1f)
                             )
@@ -355,9 +455,9 @@ fun CharacterCreateScreen(
                         // Save Button that sends all the inputs to the backend
                         Button(
                             onClick = {
-                                // Create the CharacterCreate model with the demo user id
+                                // Create the CharacterCreate model with the authenticated user id
                                 val character = CharacterCreate(
-                                    UserId = demoUserId,
+                                    UserId = actualUserId, // Use authenticated user ID
                                     name = characterName,
                                     instruction1 = instruction1,
                                     instruction2 = instruction2,

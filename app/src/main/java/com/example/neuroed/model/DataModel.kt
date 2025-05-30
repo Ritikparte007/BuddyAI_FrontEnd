@@ -1,5 +1,6 @@
 package com.example.neuroed.model
 
+import com.google.gson.annotations.SerializedName
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
@@ -48,13 +49,20 @@ data class TestCreateResponse(
 //========================= List test ==========================================
 
 data class TestList(
+    val id : Int,
+    val user_id : Int,
     val Subject: String,
     val Difficulty: String,
     val TotalQuestion: Int,
+    val SolveQuestion:Int,
     val TimeCountDown: String,
+    val topic_id:Int,
     val Topic: String,
+    val Subtopic_id: Int,
     val Subtopic: String,
-    val Quotes: String
+    val quotes: String,
+    val endTimeMs: Long,
+    val test_type:String?
 )
 
 
@@ -214,13 +222,13 @@ data class Assignment(
 
 //=================================================================
 
-data class Meditation(
-    val userId: Int,
-    val id: Int,
-    val title: String,
-    val description: String,
-    val date: String,
-)
+//data class Meditation(
+//    val userId: Int,
+//    val id: Int,
+//    val title: String,
+//    val description: String,
+//    val date: String,
+//)
 
 //===========================================================
 
@@ -345,6 +353,8 @@ data class MonthlyProgressData(
     val hoursSpent: Int,
     val isCurrentMonth: Boolean
 )
+
+
 
 /**
  * Achievement badge information
@@ -486,6 +496,9 @@ data class MonthlyProgressResponse(
         data.map { it.toMonthlyProgressData() }
 }
 
+
+
+
 data class AchievementResponse(
     val id: String,
     val name: String,
@@ -594,6 +607,16 @@ data class SessionEndResponse(
     val session_key: String,
     val end_time: String,                  // server timestamp ISO
     val client_time: String?               // echo back client timestamp
+)
+
+
+data class TodayTimeResponse(
+    @SerializedName("user_id")       val userId: Int,
+    @SerializedName("timezone")      val timezone: String,
+    @SerializedName("date")          val date: String,        // "YYYY-MM-DD"
+    @SerializedName("session_count") val sessionCount: Int,
+    @SerializedName("total_seconds") val totalSeconds: Int,
+    @SerializedName("total_time_iso")val totalTimeIso: String // e.g. "1:23:45"
 )
 
 

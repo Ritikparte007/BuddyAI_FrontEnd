@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -22,11 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.example.neuroed.repository.SubjectSyllabusGetRepository
 import com.example.neuroed.viewmodel.SubjectSyllabusViewModel
 import com.example.neuroed.viewmodel.SubjectSyllabusViewModelFactory
@@ -37,6 +36,120 @@ private val PinkDelete = Color(0xFFFF5370)
 private val DarkBackground = Color(0xFF121212)
 private val DarkCard = Color(0xFF1E1E1E)
 private val LightTextColor = Color(0xFFD0D0D0)
+
+@Composable
+fun UnitCard(
+    unitTitle: String,
+    unitDescription: String,
+    progress: Float,
+    onViewContentClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    // State for showing the delete confirmation dialog
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = unitTitle,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Add delete icon button
+                IconButton(
+                    onClick = { showDeleteDialog = true }
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete Unit",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = unitDescription,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+            ) {
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Progress: ${(progress * 100).toInt()}%",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onViewContentClick,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text(text = "View Content")
+            }
+        }
+    }
+
+    // Delete confirmation dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Unit") },
+            text = { Text("Do you want to delete this unit?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteClick() // Call the delete function passed as parameter
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +180,63 @@ fun SyllabusScreen(
     // Observe the LiveData from the ViewModel
     val syllabusList by viewModel.subjectSyllabus.observeAsState(emptyList())
 
+    // Observe delete results
+    val deleteUnitResult by viewModel.deleteUnitResult.observeAsState()
+    val deleteSubjectResult by viewModel.deleteSubjectResult.observeAsState()
+
+    val existingUnitNumbers = syllabusList.map { it.syllabusUnit }.toSet()
+    val existingUnitsParam = existingUnitNumbers.joinToString(",")
+
+    // Define the truncateText function
+    fun truncateText(text: String, wordLimit: Int = 15): String {
+        val words = text.split(" ")
+        return if (words.size > wordLimit) {
+            words.take(wordLimit).joinToString(" ") + "..."
+        } else {
+            text
+        }
+    }
+
+    // Handle refresh logic
+    val backStackEntry = navController.currentBackStackEntry
+    val refreshNeededState = backStackEntry?.savedStateHandle?.getLiveData<Boolean>("REFRESH_NEEDED")
+    val refreshNeeded by refreshNeededState?.observeAsState(false)
+        ?: remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshNeeded) {
+        if (refreshNeeded) {
+            viewModel.refreshSyllabus()
+            // Reset the flag
+            backStackEntry?.savedStateHandle?.set("REFRESH_NEEDED", false)
+        }
+    }
+
+    // Handle subject deletion result
+    LaunchedEffect(deleteSubjectResult) {
+        deleteSubjectResult?.let { result ->
+            if (result.success) {
+                // If subject deletion was successful, navigate back
+                navController.navigateUp()
+            } else {
+                // Could show a toast or other notification about the failure
+                // Reset the result to avoid repeated processing
+                viewModel.resetDeleteResults()
+            }
+        }
+    }
+
+    // Handle unit deletion result
+    LaunchedEffect(deleteUnitResult) {
+        deleteUnitResult?.let { result ->
+            if (result.success) {
+                // If unit deletion was successful, refresh the syllabus list
+                viewModel.refreshSyllabus()
+            }
+            // Reset the result to avoid repeated processing
+            viewModel.resetDeleteResults()
+        }
+    }
+
     // Dark theme with custom accent colors
     val colorScheme = darkColorScheme(
         primary = PurpleAccent,
@@ -77,16 +247,6 @@ fun SyllabusScreen(
         onSurface = LightTextColor,
         error = PinkDelete
     )
-
-    fun truncateText(text: String, wordLimit: Int = 15): String {
-        val words = text.split(" ")
-        return if (words.size > wordLimit) {
-            words.take(wordLimit).joinToString(" ") + "..."
-        } else {
-            text
-        }
-    }
-
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -106,7 +266,7 @@ fun SyllabusScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { navController.navigate("AddUnitScreen/$id") }) {
+                        IconButton(onClick = { navController.navigate("AddUnitScreen/$id/$existingUnitsParam") }) {
                             Icon(
                                 Icons.Filled.Add,
                                 contentDescription = "Add Unit",
@@ -114,7 +274,7 @@ fun SyllabusScreen(
                             )
                         }
                         IconButton(onClick = {
-                            // Handle edit action for syllabus here
+                            navController.navigate("createSubjectScreenEdit/${id}")
                         }) {
                             Icon(
                                 Icons.Filled.Edit,
@@ -148,7 +308,7 @@ fun SyllabusScreen(
             ) {
                 // Top Image (Subject Image)
                 Image(
-                    painter = painterResource(id = R.drawable.biology), // Replace with your image resource
+                    painter = painterResource(id = R.drawable.biology),
                     contentDescription = "Biology Subject Image",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -178,12 +338,21 @@ fun SyllabusScreen(
                     UnitCard(
                         unitTitle = "Unit ${syllabus.syllabusUnit}: ${syllabus.syllabusChapterName}",
                         unitDescription = truncateText(syllabus.subjectSyllabusContent),
-                        progress = 0.5f, // Adjust progress if needed
+                        progress = syllabus.sallybus_completed_percentage?.toFloat()?.div(100f) ?: 0.5f,
                         onViewContentClick = {
-                            navController.navigate("SyllabusContentScreen")
+                            // Instead of using URLEncoder which replaces spaces with +
+                            // Use a safer approach for content text
+                            val encodedChapterName = android.net.Uri.encode(syllabus.syllabusChapterName)
+                            val encodedContent = android.net.Uri.encode(syllabus.subjectSyllabusContent)
+
+                            navController.navigate(
+                                "SyllabusContentScreen/${syllabus.id}/${encodedChapterName}/${encodedContent}"
+                            )
+                        },
+                        onDeleteClick = {
+                            viewModel.deleteUnit(syllabus.id)
                         }
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
@@ -238,8 +407,12 @@ fun SyllabusScreen(
                     Button(
                         onClick = {
                             // Handle deletion of the subject here
+                            viewModel.deleteSubject()
                             showDeleteSubjectDialog = false
-                        }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
                     ) {
                         Text("Delete")
                     }
@@ -253,68 +426,3 @@ fun SyllabusScreen(
         }
     }
 }
-
-@Composable
-fun UnitCard(
-    unitTitle: String,
-    unitDescription: String,
-    progress: Float,
-    onViewContentClick: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = unitTitle,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = unitDescription,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(CircleShape)
-            ) {
-                LinearProgressIndicator(
-                    progress = progress,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Progress: ${(progress * 100).toInt()}%",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onViewContentClick,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Text(text = "View Content")
-            }
-        }
-    }
-}
-

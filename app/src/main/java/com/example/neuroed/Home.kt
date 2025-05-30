@@ -1,8 +1,18 @@
 package com.example.neuroed
 
+import com.example.neuroed.IconSizes
+
+
 import android.Manifest
+import android.app.Activity
+import android.content.ComponentName
+import com.example.neuroed.ui.theme.AppColors
 import android.content.ContentUris
 import android.content.Context
+import androidx.compose.foundation.layout.RowScope
+import com.google.accompanist.permissions.PermissionState
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.ui.res.painterResource
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -12,7 +22,9 @@ import android.os.Bundle
 import android.os.Handler
 import java.time.LocalDate
 import android.os.Looper
-import java.time.format.TextStyle
+import androidx.compose.ui.text.TextStyle
+//import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import android.provider.MediaStore
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -20,17 +32,23 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateColor
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.with
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -45,13 +63,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -119,11 +148,120 @@ import com.example.neuroed.LibrarySection
 import com.example.neuroed.repository.AttendanceRepository
 
 
+
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+//import androidx.compose.ui.unit.fontscaling.MathUtils.lerp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.neuroed.DSColors.darkSurface
+import com.example.neuroed.HelpSupportColors.darkSurface
+import com.example.neuroed.HelpSupportColors.darkText
+import com.example.neuroed.model.UserInfoViewModel
+import kotlin.math.sqrt
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontStyle
+import com.example.neuroed.model.SubjectlistResponse
+import com.example.neuroed.network.ApiHelper.getCurrentUserId
+import com.example.neuroed.repository.UserProfileRepository
+import com.example.neuroed.voice.GlobalVoiceManager
+import com.example.neuroed.voice.VoiceEnabledScreen
+//import org.json.JSONObject
+
+
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+//import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import okhttp3.*
+//import okio.ByteString
+import android.util.Base64
+//import android.util.Log
+import org.json.JSONObject
+import java.util.UUID
+//import java.util.concurrent.TimeUnit
+import kotlin.math.abs
+import kotlin.math.max
+//import kotlin.random.Random
+
+//=====================================================
+
+// Core Animation Imports
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.EaseInOutQuad
+import androidx.compose.animation.core.EaseInOutSine
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.animateColor
+
+// Coroutine Imports
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+
+// Canvas and Graphics Imports
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.*
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+// Math and Random Imports
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.abs
+
+
+
+
+//======================================================
+
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlin.math.cos
+
+
+
+
+
+
+
 
 
 const val TTS_DEBUG_TAG = "TTS_DEBUG"
@@ -145,15 +283,35 @@ val aiProfiles = listOf(
 
 // ----------------------------------------------------------------------------------------
 // ViewModel for VoiceMessages
-// ----------------------------------------------------------------------------------------
-class VoiceMessageViewModel : androidx.lifecycle.ViewModel() {
 
-    private val _recognizedText = MutableStateFlow("")
-    val recognizedText = _recognizedText.asStateFlow()
+
+
+class VoiceMessageViewModel : ViewModel() {
 
     private val _receivedMessage = MutableStateFlow("")
     val receivedMessage = _receivedMessage.asStateFlow()
 
+    // Enhanced voice pattern data
+    data class VoicePattern(
+        val averageFrequency: Float,
+        val pitchVariation: Float,
+        val speakingRate: Float,
+        val voiceprint: String // Unique voice fingerprint
+    )
+
+    data class SpeakerInfo(
+        val customUniqueId: String,
+        val displayName: String,
+        val azureSpeakerId: String,
+        val lastActiveAt: Long = System.currentTimeMillis()
+    )
+
+    // Voice pattern storage
+    private val registeredVoicePatterns = mutableMapOf<String, VoicePattern>()
+    private val speakerMap = mutableMapOf<String, SpeakerInfo>() // Azure ID -> Speaker Info
+    private var currentMainUserId: Int? = null
+
+    // WebSocket connection
     private var webSocket: WebSocket? = null
     private val client: OkHttpClient = OkHttpClient.Builder()
         .pingInterval(30, TimeUnit.SECONDS)
@@ -162,15 +320,272 @@ class VoiceMessageViewModel : androidx.lifecycle.ViewModel() {
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    fun updateRecognizedText(text: String) {
-        _recognizedText.value = text
+    companion object {
+        private const val VM_DEBUG_TAG = "VoiceMessageVM"
     }
+
+    // ========== VOICE PATTERN ANALYSIS ==========
+
+    private fun analyzeVoicePattern(audioData: ShortArray): VoicePattern {
+        val avgFreq = calculateAverageFrequency(audioData)
+        val pitchVar = calculatePitchVariation(audioData)
+        val speakingRate = calculateSpeakingRate(audioData)
+        val voiceprint = generateVoiceFingerprint(audioData)
+
+        return VoicePattern(avgFreq, pitchVar, speakingRate, voiceprint)
+    }
+
+    private fun calculateAverageFrequency(audioData: ShortArray): Float {
+        // Simple frequency calculation (can be enhanced with FFT)
+        var sum = 0.0
+        for (sample in audioData) {
+            sum += abs(sample.toInt().toDouble())  // ✅ Fixed: Short to Int to Double
+        }
+        return (sum / audioData.size).toFloat()
+    }
+
+    private fun calculatePitchVariation(audioData: ShortArray): Float {
+        // Simple pitch variation calculation
+        if (audioData.size <= 1) return 0f  // ✅ Added safety check
+
+        var variations = 0f
+        for (i in 1 until audioData.size) {
+            val diff = abs(audioData[i].toInt() - audioData[i-1].toInt())  // ✅ Fixed: Convert to Int
+            variations += diff
+        }
+        return variations / audioData.size
+    }
+
+    private fun calculateSpeakingRate(audioData: ShortArray): Float {
+        // Simple speaking rate (words per minute estimate)
+        val silenceThreshold = 1000
+        var speechSamples = 0
+
+        for (sample in audioData) {
+            if (abs(sample.toInt()) > silenceThreshold) {  // ✅ Fixed: Convert to Int
+                speechSamples++
+            }
+        }
+
+        return if (audioData.isNotEmpty()) {  // ✅ Added safety check
+            (speechSamples.toFloat() / audioData.size) * 100
+        } else {
+            0f
+        }
+    }
+
+    private fun generateVoiceFingerprint(audioData: ShortArray): String {
+        // Generate unique fingerprint (simplified version)
+        val hashCode = audioData.contentHashCode()
+        val avgFreq = calculateAverageFrequency(audioData)
+        val fingerprint = "${hashCode}_${avgFreq.toInt()}_${audioData.size}"
+
+        return Base64.encodeToString(fingerprint.toByteArray(), Base64.NO_WRAP)
+    }
+
+    private fun matchVoicePattern(currentPattern: VoicePattern): String? {
+        registeredVoicePatterns.forEach { (speakerId, storedPattern) ->
+            val similarity = calculateSimilarity(currentPattern, storedPattern)
+            if (similarity > 0.85f) { // 85% match threshold
+                Log.d(VM_DEBUG_TAG, "🎯 Voice matched: $speakerId (similarity: $similarity)")
+                return speakerId
+            }
+        }
+        return null
+    }
+
+    private fun calculateSimilarity(pattern1: VoicePattern, pattern2: VoicePattern): Float {
+        val freqDiff = abs(pattern1.averageFrequency - pattern2.averageFrequency) / 1000f
+        val pitchDiff = abs(pattern1.pitchVariation - pattern2.pitchVariation) / 1000f
+        val rateDiff = abs(pattern1.speakingRate - pattern2.speakingRate) / 100f
+
+        val totalDiff = (freqDiff + pitchDiff + rateDiff) / 3f
+        return max(0f, 1f - totalDiff)  // ✅ Fixed: Using kotlin.math.max
+    }
+
+    // ========== USER REGISTRATION ==========
+
+    fun registerMainUser(userId: Int, voiceSignature: String? = null) {
+        currentMainUserId = userId
+
+        val registrationPayload = """
+        {
+            "type": "user_registration",
+            "user": {
+                "id": $userId,
+                "voice_signature": "${voiceSignature ?: "default_signature_$userId"}"
+            },
+            "timestamp": ${System.currentTimeMillis()}
+        }
+        """.trimIndent()
+
+        sendWebSocketMessage(registrationPayload)
+        Log.d(VM_DEBUG_TAG, "🔐 Main user registered: $userId")
+    }
+
+    // ========== SPEAKER MANAGEMENT ==========
+
+    fun processVoiceInput(
+        audioData: ShortArray,
+        recognizedText: String,
+        azureSpeakerId: String
+    ) {
+        if (recognizedText.isBlank()) return
+
+        // Analyze voice pattern
+        val currentVoicePattern = analyzeVoicePattern(audioData)
+
+        // Try to match with existing voice patterns
+        val matchedSpeakerId = matchVoicePattern(currentVoicePattern)
+
+        val speakerInfo = if (matchedSpeakerId != null) {
+            // Existing speaker recognized by voice
+            getOrUpdateSpeakerInfo(matchedSpeakerId, azureSpeakerId)
+        } else {
+            // New speaker detected
+            val newSpeakerId = generateUniqueSpeakerId()
+            registeredVoicePatterns[newSpeakerId] = currentVoicePattern
+            createNewSpeakerInfo(newSpeakerId, azureSpeakerId)
+        }
+
+        // Determine event type
+        val eventType = determineEventType(speakerInfo.customUniqueId, azureSpeakerId)
+
+        // Send conversation message
+        sendConversationMessage(speakerInfo, recognizedText, eventType, azureSpeakerId)
+
+        Log.d(VM_DEBUG_TAG, "🎤 Processed voice: ${speakerInfo.displayName} -> $recognizedText")
+    }
+
+    private fun generateUniqueSpeakerId(): String {
+        val timestamp = System.currentTimeMillis()
+        val random = Random.nextInt(1000, 9999)  // ✅ Fixed: Using kotlin.random.Random
+        return "SPEAKER_${timestamp}_$random"
+    }
+
+    private fun getOrUpdateSpeakerInfo(speakerId: String, azureSpeakerId: String): SpeakerInfo {
+        // Check if we have this speaker in current session
+        speakerMap.values.find { it.customUniqueId == speakerId }?.let { existing ->
+            // Update last active time
+            val updated = existing.copy(
+                lastActiveAt = System.currentTimeMillis(),
+                azureSpeakerId = azureSpeakerId
+            )
+            speakerMap[azureSpeakerId] = updated
+            return updated
+        }
+
+        // Create new session entry for returning speaker
+        val speakerInfo = SpeakerInfo(
+            customUniqueId = speakerId,
+            displayName = getDisplayNameForSpeaker(speakerId),
+            azureSpeakerId = azureSpeakerId,
+            lastActiveAt = System.currentTimeMillis()
+        )
+
+        speakerMap[azureSpeakerId] = speakerInfo
+        return speakerInfo
+    }
+
+    private fun createNewSpeakerInfo(speakerId: String, azureSpeakerId: String): SpeakerInfo {
+        val displayName = generateDisplayName(speakerId)
+        val speakerInfo = SpeakerInfo(
+            customUniqueId = speakerId,
+            displayName = displayName,
+            azureSpeakerId = azureSpeakerId,
+            lastActiveAt = System.currentTimeMillis()
+        )
+
+        speakerMap[azureSpeakerId] = speakerInfo
+        Log.d(VM_DEBUG_TAG, "✨ New speaker created: $displayName ($speakerId)")
+
+        return speakerInfo
+    }
+
+    private fun getDisplayNameForSpeaker(speakerId: String): String {
+        // Try to get from stored data or generate new
+        return when {
+            speakerId.contains("MAIN") -> "Main User"
+            speakerId.contains("USER") -> "User ${speakerId.takeLast(4)}"
+            else -> "Speaker ${speakerId.takeLast(4)}"
+        }
+    }
+
+    private fun generateDisplayName(speakerId: String): String {
+        val speakerCount = speakerMap.size + 1
+        return when (speakerCount) {
+            1 -> "User A"
+            2 -> "User B"
+            3 -> "User C"
+            else -> "User ${('A'.code + speakerCount - 1).toChar()}"
+        }
+    }
+
+    private fun determineEventType(customUniqueId: String, azureSpeakerId: String): String {
+        return when {
+            !speakerMap.containsKey(azureSpeakerId) -> "new_speaker"
+            speakerMap[azureSpeakerId]?.customUniqueId != customUniqueId -> "speaker_change"
+            else -> "continued_speech"
+        }
+    }
+
+    // ========== ENHANCED MESSAGE SENDING ==========
+
+    private fun sendConversationMessage(
+        speakerInfo: SpeakerInfo,
+        message: String,
+        eventType: String,
+        azureSpeakerId: String
+    ) {
+        val messageId = UUID.randomUUID().toString()
+
+        // ✅ Fixed: Proper JSON escaping
+        val escapedMessage = message.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+
+        val payload = """
+        {
+            "type": "conversation_message",
+            "speaker": {
+                "unique_id": "${speakerInfo.customUniqueId}",
+                "display_name": "${speakerInfo.displayName}",
+                "azure_speaker_id": "$azureSpeakerId"
+            },
+            "message": {
+                "id": "$messageId",
+                "text": "$escapedMessage",
+                "timestamp": ${speakerInfo.lastActiveAt}
+            },
+            "event_type": "$eventType",
+            "voice_pattern": {
+                "average_frequency": 0.0,
+                "pitch_variation": 0.0,
+                "speaking_rate": 0.0,
+                "voice_fingerprint": "temp_fingerprint"
+            },
+            "conversation_metadata": {
+                "total_speakers": ${speakerMap.size},
+                "current_active_speaker": "${speakerInfo.customUniqueId}",
+                "main_user_id": $currentMainUserId
+            }
+        }
+        """.trimIndent()
+
+        sendWebSocketMessage(payload)
+        Log.d(VM_DEBUG_TAG, "📤 Sent: $eventType from ${speakerInfo.displayName}")
+    }
+
+    // ========== WEBSOCKET CONNECTION ==========
 
     fun connectWebSocket() {
         if (webSocket != null) {
             Log.d(VM_DEBUG_TAG, "WebSocket already connected or connecting.")
             return
         }
+
         val actualUrlToUse = "ws://localhost:8000/api/Assistantconnection/"
         Log.d(VM_DEBUG_TAG, "Preparing to connect WebSocket to: $actualUrlToUse")
         val request = Request.Builder().url(actualUrlToUse).build()
@@ -179,25 +594,30 @@ class VoiceMessageViewModel : androidx.lifecycle.ViewModel() {
             Log.d(VM_DEBUG_TAG, "Attempting WebSocket connection...")
             webSocket = client.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    Log.i(VM_DEBUG_TAG, "WebSocket Opened: ${response.message}")
+                    Log.i(VM_DEBUG_TAG, "✅ WebSocket Connected: ${response.message}")
                 }
+
                 override fun onMessage(webSocket: WebSocket, text: String) {
-                    Log.i(VM_DEBUG_TAG, "WebSocket Received Text: $text")
-                    _receivedMessage.value = text
+                    Log.i(VM_DEBUG_TAG, "📥 WebSocket Received: $text")
+                    handleWebSocketMessage(text)
                 }
+
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                    Log.i(VM_DEBUG_TAG, "WebSocket Received Bytes: ${bytes.hex()}")
+                    Log.i(VM_DEBUG_TAG, "📥 WebSocket Received Bytes: ${bytes.hex()}")
                     _receivedMessage.value = bytes.utf8()
                 }
+
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                    Log.i(VM_DEBUG_TAG, "WebSocket Closing: Code=$code, Reason='$reason'")
+                    Log.i(VM_DEBUG_TAG, "⚠️ WebSocket Closing: Code=$code, Reason='$reason'")
                 }
+
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    Log.i(VM_DEBUG_TAG, "WebSocket Closed: Code=$code, Reason='$reason'")
+                    Log.i(VM_DEBUG_TAG, "❌ WebSocket Closed: Code=$code, Reason='$reason'")
                     this@VoiceMessageViewModel.webSocket = null
                 }
+
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    Log.e(VM_DEBUG_TAG, "WebSocket Failure: ${t.message}", t)
+                    Log.e(VM_DEBUG_TAG, "💥 WebSocket Failure: ${t.message}", t)
                     response?.let {
                         Log.e(VM_DEBUG_TAG, "Failure Response: Code=${it.code}, Message=${it.message}")
                     }
@@ -207,27 +627,71 @@ class VoiceMessageViewModel : androidx.lifecycle.ViewModel() {
         }
     }
 
+    private fun handleWebSocketMessage(message: String) {
+        try {
+            // Parse and handle different message types
+            val jsonObject = JSONObject(message)
+            val messageType = jsonObject.optString("type", "unknown")
+
+            when (messageType) {
+                "ai_response" -> {
+                    val aiMessage = jsonObject.optString("message", "")
+                    val speakerInfo = jsonObject.optJSONObject("speaker")
+                    val speakerName = speakerInfo?.optString("display_name", "Unknown")
+
+                    Log.d(VM_DEBUG_TAG, "🤖 AI Response for $speakerName: $aiMessage")
+                    _receivedMessage.value = message
+                }
+                "registration_success" -> {
+                    Log.d(VM_DEBUG_TAG, "✅ User registration successful")
+                    _receivedMessage.value = message
+                }
+                "error" -> {
+                    val errorMessage = jsonObject.optString("message", "Unknown error")
+                    Log.e(VM_DEBUG_TAG, "❌ Server Error: $errorMessage")
+                    _receivedMessage.value = message
+                }
+                else -> {
+                    Log.d(VM_DEBUG_TAG, "📥 Unknown message type: $messageType")
+                    _receivedMessage.value = message
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(VM_DEBUG_TAG, "Error parsing WebSocket message: ${e.message}")
+            _receivedMessage.value = message
+        }
+    }
+
+    private fun sendWebSocketMessage(jsonPayload: String) {
+        val currentWebSocket = webSocket
+        if (currentWebSocket == null) {
+            Log.e(VM_DEBUG_TAG, "Cannot send message, WebSocket is null. Attempting to reconnect...")
+            connectWebSocket()
+            return
+        }
+
+        Log.d(VM_DEBUG_TAG, "📤 Sending: $jsonPayload")
+        val sent = currentWebSocket.send(jsonPayload)
+
+        if (sent) {
+            Log.d(VM_DEBUG_TAG, "✅ Message queued successfully")
+        } else {
+            Log.e(VM_DEBUG_TAG, "❌ Failed to queue message")
+            connectWebSocket()
+        }
+    }
+
+    // ========== LEGACY SUPPORT ==========
+
     fun sendVoiceMessage(text: String) {
         if (text.isBlank()) {
             Log.w(VM_DEBUG_TAG, "Attempted to send blank message. Skipping.")
             return
         }
-        val currentWebSocket = webSocket
-        if (currentWebSocket == null) {
-            Log.e(VM_DEBUG_TAG, "Cannot send message, WebSocket is null or closed. Attempting to reconnect...")
-            connectWebSocket()
-            return
-        }
+
         val escapedText = text.replace("\\", "\\\\").replace("\"", "\\\"")
         val jsonPayload = "{\"message\": \"$escapedText\"}"
-        Log.d(VM_DEBUG_TAG, "Sending JSON payload via WebSocket: $jsonPayload")
-        val sent = currentWebSocket.send(jsonPayload)
-        if (sent) {
-            Log.d(VM_DEBUG_TAG, "JSON Message successfully queued for sending.")
-        } else {
-            Log.e(VM_DEBUG_TAG, "Failed to queue JSON message (WebSocket closing or buffer full?).")
-            connectWebSocket()
-        }
+        sendWebSocketMessage(jsonPayload)
     }
 
     fun clearReceivedMessage() {
@@ -237,12 +701,17 @@ class VoiceMessageViewModel : androidx.lifecycle.ViewModel() {
         }
     }
 
+    // ========== CLEANUP ==========
+
     override fun onCleared() {
         super.onCleared()
-        Log.d(VM_DEBUG_TAG, "ViewModel cleared. Closing WebSocket.")
+        Log.d(VM_DEBUG_TAG, "🧹 ViewModel cleared. Closing WebSocket.")
         webSocket?.close(1000, "ViewModel cleared")
+        registeredVoicePatterns.clear()
+        speakerMap.clear()
     }
 }
+
 
 // ----------------------------------------------------------------------------------------
 // Helper functions for Speech
@@ -294,18 +763,26 @@ private fun startRegularListening(
         Toast.makeText(context, "Speech recognition not available.", Toast.LENGTH_SHORT).show()
         return
     }
+
     try {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+            // FIX 19: Add secure flag to prevent issues
+            putExtra(RecognizerIntent.EXTRA_SECURE, false)
         }
+
         recognizer.setRecognitionListener(listener)
         recognizer.startListening(intent)
-        Log.d(MIC_DEBUG_TAG, "SpeechRecognizer.startListening() called.")
+        Log.d(MIC_DEBUG_TAG, "SpeechRecognizer.startListening() called successfully.")
+
     } catch (e: SecurityException) {
         Log.e(MIC_DEBUG_TAG, "SecurityException starting listening: ${e.message}")
         Toast.makeText(context, "Audio recording permission denied.", Toast.LENGTH_SHORT).show()
@@ -318,272 +795,750 @@ private fun startRegularListening(
 // ----------------------------------------------------------------------------------------
 // Azure TTS (Synthesizer)
 // ----------------------------------------------------------------------------------------
-private suspend fun synthesizeSpeech(synthesizer: SpeechSynthesizer, text: String) =
-    withContext(Dispatchers.IO) {
-        if (text.isBlank()) {
-            Log.d(TTS_DEBUG_TAG, "Skipping synthesis for blank/empty text.")
-            return@withContext
-        }
-        try {
-            Log.d(TTS_DEBUG_TAG, "Attempting to synthesize: '$text'")
-            val result = synthesizer.SpeakTextAsync(text).get()
-            when (result.reason) {
-                ResultReason.SynthesizingAudioCompleted -> {
-                    Log.d(
-                        TTS_DEBUG_TAG,
-                        "Speech synthesis completed successfully for '$text'. Audio duration: ${result.audioDuration}"
-                    )
-                }
-                ResultReason.Canceled -> {
-                    val cancellation = SpeechSynthesisCancellationDetails.fromResult(result)
-                    Log.e(TTS_DEBUG_TAG, "Speech synthesis CANCELED for '$text'")
-                    Log.e(TTS_DEBUG_TAG, ">> Reason: ${cancellation.reason}")
-                    if (cancellation.reason == com.microsoft.cognitiveservices.speech.CancellationReason.Error) {
-                        Log.e(TTS_DEBUG_TAG, ">> ErrorCode: ${cancellation.errorCode}")
-                        Log.e(TTS_DEBUG_TAG, ">> ErrorDetails: ${cancellation.errorDetails}")
-                    }
-                }
-                else -> {
-                    Log.w(TTS_DEBUG_TAG, "Speech synthesis result for '$text': ${result.reason}")
-                }
-            }
-            result.close()
-        } catch (e: Exception) {
-            Log.e(TTS_DEBUG_TAG, "Speech synthesis FAILED for '$text': ${e.message}", e)
-        }
-    }
+//private suspend fun synthesizeSpeech(synthesizer: SpeechSynthesizer, text: String) =
+//    withContext(Dispatchers.IO) {
+//        if (text.isBlank()) {
+//            Log.d(TTS_DEBUG_TAG, "Skipping synthesis for blank/empty text.")
+//            return@withContext
+//        }
+//        try {
+//            Log.d(TTS_DEBUG_TAG, "Attempting to synthesize: '$text'")
+//            val result = synthesizer.SpeakTextAsync(text).get()
+//            when (result.reason) {
+//                ResultReason.SynthesizingAudioCompleted -> {
+//                    Log.d(
+//                        TTS_DEBUG_TAG,
+//                        "Speech synthesis completed successfully for '$text'. Audio duration: ${result.audioDuration}"
+//                    )
+//                }
+//                ResultReason.Canceled -> {
+//                    val cancellation = SpeechSynthesisCancellationDetails.fromResult(result)
+//                    Log.e(TTS_DEBUG_TAG, "Speech synthesis CANCELED for '$text'")
+//                    Log.e(TTS_DEBUG_TAG, ">> Reason: ${cancellation.reason}")
+//                    if (cancellation.reason == com.microsoft.cognitiveservices.speech.CancellationReason.Error) {
+//                        Log.e(TTS_DEBUG_TAG, ">> ErrorCode: ${cancellation.errorCode}")
+//                        Log.e(TTS_DEBUG_TAG, ">> ErrorDetails: ${cancellation.errorDetails}")
+//                    }
+//                }
+//                else -> {
+//                    Log.w(TTS_DEBUG_TAG, "Speech synthesis result for '$text': ${result.reason}")
+//                }
+//            }
+//            result.close()
+//        } catch (e: Exception) {
+//            Log.e(TTS_DEBUG_TAG, "Speech synthesis FAILED for '$text': ${e.message}", e)
+//        }
+//    }
 
 // ----------------------------------------------------------------------------------------
 // HomeScreen
 // ----------------------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
+
+
+
+
+
+/* ----------  Design-System Tokens ---------- */
+object DSColors {
+    val primary         = Color(0xFF6A5ACD)
+    val primaryLight    = Color(0xFF9370DB)
+    val background      = Color(0xFFF9FAFB)
+    val surface         = Color(0xFFFFFFFF)
+    val surfaceHighlight= Color(0xFFE6E6FA)
+    val textDark        = Color(0xFF1F2937)
+    val textLight       = Color(0xFF6B7280)
+    val divider         = Color(0xFFE5E7EB)
+    val success         = Color(0xFF34D399)
+    val info            = Color(0xFF3B82F6)
+    val warning         = Color(0xFFFBBF24)
+
+    /* dark tokens */
+    val darkBg          = Color(0xFF121212)
+    val darkSurface     = Color(0xFF1E1E1E)
+    val darkText        = Color(0xFFE0E0E0)
+}
+
+object DSSpacing { val xs = 4.dp; val sm = 8.dp; val md = 16.dp; val lg = 24.dp }
+object DSRadius  { val card = 12.dp; val pill = 24.dp }
+object DSMotion  {
+    const val fade = 500
+    const val slideOffsetY = -40
+    val easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+    const val stagger = 100
+}
+object DSTypography {
+    val h1 = TextStyle(fontSize = 24.sp , fontWeight = FontWeight.W700)
+    val h2 = TextStyle(fontSize = 18.sp , fontWeight = FontWeight.W700)
+    val body = TextStyle(fontSize = 15.sp , fontWeight = FontWeight.W500)
+    val caption = TextStyle(fontSize = 12.sp , fontWeight = FontWeight.W400)
+}
+object IconSizes { val headerLogo = 48.dp; val headerBox = 80.dp; val drawerIcon = 25.dp; val socialIcon = 20.dp }
+
+/* ----------  Theme ---------- */
+private fun lightScheme() = lightColorScheme(
+    primary = DSColors.primary,
+    onPrimary = Color.White,
+    primaryContainer = DSColors.primaryLight,
+    background = DSColors.background,
+    surface = DSColors.surface,
+    onSurface = DSColors.textDark
+)
+private fun darkScheme() = darkColorScheme(
+    primary = DSColors.primaryLight,
+    onPrimary = Color.Black,
+    primaryContainer = DSColors.primary,
+    background = DSColors.darkBg,
+    surface = DSColors.darkSurface,
+    onSurface = DSColors.darkText
+)
+
+@Composable
+fun BuddyAITheme(content: @Composable () -> Unit) {
+    val colors = if (isSystemInDarkTheme()) darkScheme() else lightScheme()
+    MaterialTheme(colorScheme = colors, typography = Typography(
+        titleLarge = DSTypography.h1,
+        titleMedium = DSTypography.h2,
+        bodyMedium  = DSTypography.body,
+        labelSmall  = DSTypography.caption
+    ), shapes = Shapes(extraSmall = RoundedCornerShape(DSRadius.card))) {
+        content()
+    }
+}
+
+/* ----------  Drawer Item Model ---------- */
+data class DrawerItem(
+    val label: String,
+    val icon: ImageVector? = null,
+    val iconRes: Int? = null,
+    val route: String,
+    val selected: Boolean = false,
+    val badge: String? = null
+)
+
+
+@Immutable
+data class SocialItem(val name: String, @DrawableRes val iconRes: Int)
+
+// Inside HomeDrawerContent composable, before the Row:
+val socialItems = listOf(
+    SocialItem("Twitter",   R.drawable.twitter),
+    SocialItem("Instagram", R.drawable.instagram),
+    SocialItem("LinkedIn",  R.drawable.linkedin)
+)
+
+/* ----------  Home Drawer Content ---------- */
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalAnimationApi::class
+)
+@Composable
+fun HomeDrawerContent(
+    navController: NavController,
+    drawerState: DrawerState
+) {
+    val scope = rememberCoroutineScope()
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    val colors   = MaterialTheme.colorScheme
+    val scroll   = rememberScrollState()
+    val isDark   = isSystemInDarkTheme()
+    val drawerBg by animateColorAsState(
+        if (isDark) DSColors.darkBg else colors.surface,
+        animationSpec = tween(DSMotion.fade, easing = DSMotion.easing)
+    )
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(
+            animationSpec = tween(
+                durationMillis = DSMotion.fade,
+                easing = DSMotion.easing
+            )
+        ) + slideInVertically(
+            animationSpec = tween(
+                durationMillis = DSMotion.fade,
+                easing = DSMotion.easing
+            ),
+            initialOffsetY = { DSMotion.slideOffsetY }   // -40 ➜ slides up
+        )
+    ) {
+        ModalDrawerSheet(
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .background(drawerBg),
+            drawerShape = RoundedCornerShape(
+                topEnd = DSRadius.card,
+                bottomEnd = DSRadius.card
+            ),
+            drawerContainerColor = drawerBg,
+            drawerContentColor  = colors.onSurface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .verticalScroll(scroll)
+            ) {
+                /* ---------- Header ---------- */
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .background(if (isDark) drawerBg else colors.primary)
+                        .padding(DSSpacing.md),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(IconSizes.headerBox)
+                            .clip(RoundedCornerShape(DSRadius.card))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        if (isDark) drawerBg else colors.primaryContainer,
+                                        if (isDark) drawerBg else colors.primary
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = null,
+                            tint = colors.onSurface,
+                            modifier = Modifier.size(IconSizes.headerLogo)
+                        )
+                    }
+                    Text(
+                        text = "BUDDYAI",
+                        style = DSTypography.h2,
+                        color = colors.onSurface,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
+                Spacer(Modifier.height(DSSpacing.sm))
+
+                /* ---------- Navigation Items ---------- */
+                val items = listOf(
+                    DrawerItem("Home", Icons.Default.Home, null, "home", selected = true, badge = "New"),
+                    DrawerItem("Notifications", Icons.Default.Star, null, "NotificationScreen", badge = "3"),
+                    DrawerItem("Profile", Icons.Default.Person, null, "profile"),
+                    DrawerItem("Settings", Icons.Default.Settings, null, "settings"),
+                    DrawerItem("Subscription", Icons.Default.CheckCircle, null, "SubscriptionScreen", badge = "PRO"),
+                    DrawerItem("Share", Icons.Default.Share, null, "share"),
+                    DrawerItem("Help & Support", Icons.Default.Home, null, "HelpSupportScreen"),
+                    DrawerItem("Logout", Icons.Default.ExitToApp, null, "logout")
+                )
+                items.forEachIndexed { idx, item ->
+                    val labelCol = if (item.selected) colors.primary else colors.onSurface
+                    NavigationDrawerItem(
+                        label = { Text(item.label, style = DSTypography.body, color = labelCol) },
+                        selected = item.selected,
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(item.route)
+                            }
+                        },
+                        icon = {
+                            when {
+                                item.icon != null -> Icon(item.icon, null, Modifier.size(IconSizes.drawerIcon))
+                                item.iconRes != null -> Icon(
+                                    painterResource(item.iconRes), null, Modifier.size(IconSizes.drawerIcon)
+                                )
+                            }
+                        },
+                        badge = item.badge?.let { { Text(it, style = DSTypography.caption) } },
+                        modifier = Modifier
+                            .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs)
+                            .animateEnterExit(
+                                enter = fadeIn(
+                                    animationSpec = tween(
+                                        DSMotion.fade,
+                                        delayMillis = DSMotion.stagger * idx,
+                                        easing = DSMotion.easing
+                                    )
+                                ) +slideInVertically(
+                                    animationSpec = tween(
+                                        durationMillis = DSMotion.fade,
+                                        delayMillis    = DSMotion.stagger * idx,   // omit delay for the header call
+                                        easing         = DSMotion.easing
+                                    ),
+                                    initialOffsetY = { DSMotion.slideOffsetY }     // constant → -40
+                                )
+                            ),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Color.Transparent,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedTextColor = colors.onSurface,
+                            selectedTextColor = colors.primary
+                        )
+                    )
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                /* ---------- Social Links ---------- */
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(DSSpacing.md),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    socialItems.forEachIndexed { index, item ->
+                        IconButton(onClick = { /* TODO: Navigate to ${item.name} */ }) {
+                            Icon(
+                                painter = painterResource(id = item.iconRes),
+                                contentDescription = item.name,
+                                tint = Color.Unspecified,         // uses default content color
+                                modifier = Modifier.size(34.dp)
+                            )
+                        }
+                        if (index != socialItems.lastIndex) {
+                            Spacer(modifier = Modifier.width(DSSpacing.sm))
+                        }
+                    }
+                }
+
+                /* ---------- Version ---------- */
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(DSSpacing.md),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("BUDDYAI v1.0", style = DSTypography.caption, color = colors.onSurface)
+                }
+            }
+        }
+    }
+}
+
+
+
+private fun synthesizeSpeechWithAnimation(
+    synthesizer: SpeechSynthesizer,
+    text: String,
+    onSpeakingStateChanged: (Boolean) -> Unit
+) {
+    try {
+        Log.d(TTS_DEBUG_TAG, "Starting speech synthesis with animation for: '$text'")
+
+        // Start speaking animation
+        onSpeakingStateChanged(true)
+
+        // Launch coroutine for TTS
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val result = synthesizer.SpeakTextAsync(text).get()
+
+                when (result.reason) {
+                    ResultReason.SynthesizingAudioCompleted -> {
+                        Log.d(TTS_DEBUG_TAG, "✅ Speech synthesis completed successfully")
+                        // Keep animation running for a bit after speech completes for better UX
+                        delay(500) // 500ms delay after speech ends
+                        withContext(Dispatchers.Main) {
+                            onSpeakingStateChanged(false)
+                        }
+                    }
+                    ResultReason.Canceled -> {
+                        val cancellation = SpeechSynthesisCancellationDetails.fromResult(result)
+                        Log.w(TTS_DEBUG_TAG, "⏹️ Speech synthesis canceled: ${cancellation.reason}")
+                        if (cancellation.reason == com.microsoft.cognitiveservices.speech.CancellationReason.Error) {
+                            Log.e(TTS_DEBUG_TAG, "❌ Speech synthesis error: ${cancellation.errorDetails}")
+                        }
+                        withContext(Dispatchers.Main) {
+                            onSpeakingStateChanged(false)
+                        }
+                    }
+                    else -> {
+                        Log.w(TTS_DEBUG_TAG, "⚠️ Unexpected speech synthesis result: ${result.reason}")
+                        withContext(Dispatchers.Main) {
+                            onSpeakingStateChanged(false)
+                        }
+                    }
+                }
+                result.close()
+            } catch (e: Exception) {
+                Log.e(TTS_DEBUG_TAG, "❌ Exception during speech synthesis: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    onSpeakingStateChanged(false)
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TTS_DEBUG_TAG, "❌ Exception starting speech synthesis: ${e.message}", e)
+        onSpeakingStateChanged(false)
+    }
+}
+
+// ✅ FALLBACK: Original function for backward compatibility
+private fun synthesizeSpeech(synthesizer: SpeechSynthesizer, text: String) {
+    GlobalScope.launch(Dispatchers.IO) {
+        synthesizeSpeech(synthesizer, text)
+    }
+}
+
+
+
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
     navController: NavController,
     voiceMessageViewModel: VoiceMessageViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
-    val systemUiController = rememberSystemUiController()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
+
+    val recordAudioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
     val context = LocalContext.current
 
-    SideEffect {
-        systemUiController.setSystemBarsColor(color = Color.Transparent, darkIcons = true)
-    }
+    // ✅ CRITICAL: AI Speaking state for animation with AI response text
+    var isAISpeaking by remember { mutableStateOf(false) }
+    var currentAIResponse by remember { mutableStateOf("") } // ✅ NEW: Store AI response text
+    var aiSpeakingJob by remember { mutableStateOf<Job?>(null) }
 
-    // Connect WebSocket when screen enters composition
-    LaunchedEffect(Unit) {
-        Log.d("HomeScreen", "Requesting ViewModel to connect to Assistant WebSocket.")
-        voiceMessageViewModel.connectWebSocket()
-    }
+    // ✅ CRITICAL: Cleanup voice when leaving HomeScreen
+    DisposableEffect(Unit) {
+        Log.d("HomeScreen", "🎤 HomeScreen voice session started")
 
-    // Initialize Azure TTS objects
-    val speechSynthesizer = remember { mutableStateOf<SpeechSynthesizer?>(null) }
-    val speechConfig = remember { mutableStateOf<SpeechConfig?>(null) }
-    val audioConfig = remember { mutableStateOf<AudioConfig?>(null) }
-
-
-
-    val userId = 1
-    val api    = RetrofitClient.apiService
-    val repo   = remember { AttendanceRepository(api) }
-    val vm: AttendanceViewModel = viewModel(
-        factory = AttendanceViewModelFactory(repo)
-    )
-
-    val attendance by vm.attendance.collectAsState()
-    val loading    by vm.isLoading.collectAsState()
-    val error      by vm.errorMessage.collectAsState()
-
-    // when screen appears, mark attendance with client time
-    LaunchedEffect(Unit) {
-        vm.markToday(userId)
-    }
-
-
-    LaunchedEffect(Unit) {
-        try {
-            val speechKey = "4a5877d33caa49bcbc19eade2c0fc602"
-            val serviceRegion = "centralindia"
-            Log.d(TTS_DEBUG_TAG, "Initializing Azure speech synthesizer...")
-            speechConfig.value = SpeechConfig.fromSubscription(speechKey, serviceRegion).apply {
-                speechSynthesisVoiceName = "en-US-AvaMultilingualNeural"
+        onDispose {
+            Log.d("HomeScreen", "🛑 HomeScreen disposing - stopping voice")
+            try {
+                // Stop any active voice session
+                if (GlobalVoiceManager.isListening.value) {
+                    GlobalVoiceManager.stopListening()
+                }
+                // Stop AI speaking animation
+                isAISpeaking = false
+                currentAIResponse = "" // ✅ Clear AI response
+                aiSpeakingJob?.cancel()
+                // Small delay for cleanup
+                kotlinx.coroutines.runBlocking {
+                    kotlinx.coroutines.delay(100)
+                }
+            } catch (e: Exception) {
+                Log.e("HomeScreen", "Error disposing voice: ${e.message}")
             }
-            audioConfig.value = AudioConfig.fromDefaultSpeakerOutput()
-            speechSynthesizer.value = SpeechSynthesizer(speechConfig.value, audioConfig.value)
-            Log.d(TTS_DEBUG_TAG, "Speech synthesizer initialized successfully.")
-        } catch (e: Exception) {
-            Log.e(TTS_DEBUG_TAG, "Failed to initialize speech synthesizer: ${e.message}", e)
-            Toast.makeText(context, "TTS Initialization Failed", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Whenever we get a message from the server, try to TTS
-    val assistantReply = voiceMessageViewModel.receivedMessage.collectAsState().value
-    LaunchedEffect(assistantReply) {
-        val synthesizer = speechSynthesizer.value
-        if (assistantReply.isNotEmpty() && synthesizer != null) {
+    // ✅ Monitor navigation changes and cleanup voice
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+            // If navigating away from home, stop voice and AI animation
+            if (destination.route != "home" && destination.route != null) {
+                Log.d("HomeScreen", "🚀 Navigating away from HomeScreen to: ${destination.route}")
+                try {
+                    if (GlobalVoiceManager.isListening.value) {
+                        GlobalVoiceManager.stopListening()
+                        Log.d("HomeScreen", "✅ Stopped voice due to navigation")
+                    }
+                    isAISpeaking = false
+                    currentAIResponse = "" // ✅ Clear AI response
+                    aiSpeakingJob?.cancel()
+                } catch (e: Exception) {
+                    Log.e("HomeScreen", "Error stopping voice on navigation: ${e.message}")
+                }
+            }
+        }
+
+        navController.addOnDestinationChangedListener(listener)
+        onDispose {
+            navController.removeOnDestinationChangedListener(listener)
+        }
+    }
+
+    // ✅ CRITICAL: Use VoiceEnabledScreen wrapper exactly like PlaygroundScreen
+    VoiceEnabledScreen(
+        screenName = "HomeScreen",
+        onVoiceResult = { text ->
+            Log.d("HomeVoice", "✅ Voice result received: $text")
+            // Don't auto-send, let user choose
+        },
+        onVoiceError = { error ->
+            Log.e("HomeVoice", "❌ Voice error: $error")
+            Toast.makeText(context, "Voice error: $error", Toast.LENGTH_SHORT).show()
+        },
+        onNetworkError = {
+            Log.w("HomeVoice", "📡 Network error")
+            Toast.makeText(context, "Network connection required", Toast.LENGTH_SHORT).show()
+        },
+        onPermissionRequired = {
+            Log.w("HomeVoice", "🔐 Permission required")
+            recordAudioPermission.launchPermissionRequest()
+        },
+        silenceTimeoutMs = 15000L,
+        maxSessionDuration = 300000L, // 5 minutes
+        autoRetryEnabled = true
+    ) { isListening, recognizedText, networkAvailable, startVoice, stopVoice, restartSession ->
+
+        // ✅ All your existing HomeScreen state management
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val needsRefreshSubjects = remember { mutableStateOf(false) }
+
+        val createSubjectLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val shouldRefresh = result.data?.getBooleanExtra("REFRESH_SUBJECTS", false) ?: false
+                if (shouldRefresh) {
+                    Log.d("HomeScreen", "Received result to refresh subjects")
+                    needsRefreshSubjects.value = true
+                }
+            }
+        }
+
+        LaunchedEffect(needsRefreshSubjects.value) {
+            if (needsRefreshSubjects.value) {
+                delay(100)
+                needsRefreshSubjects.value = false
+            }
+        }
+
+        DisposableEffect(navController) {
+            val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+                if (destination.route == "home" || destination.route == null) {
+                    Log.d("HomeScreen", "Detected return to HomeScreen - refreshing subjects")
+                    needsRefreshSubjects.value = true
+                }
+            }
+
+            navController.addOnDestinationChangedListener(listener)
+            onDispose {
+                navController.removeOnDestinationChangedListener(listener)
+            }
+        }
+
+        val systemUiController = rememberSystemUiController()
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+
+        var currentSoundLevel by remember { mutableStateOf(0f) }
+
+        SideEffect {
+            systemUiController.setSystemBarsColor(
+                color = Color.Black,
+                darkIcons = false
+            )
+        }
+
+        // Connect WebSocket when screen enters composition
+        LaunchedEffect(Unit) {
+            Log.d("HomeScreen", "Requesting ViewModel to connect to Assistant WebSocket.")
+            voiceMessageViewModel.connectWebSocket()
+        }
+
+        // All your existing TTS setup...
+        val speechSynthesizer = remember { mutableStateOf<SpeechSynthesizer?>(null) }
+        val speechConfig = remember { mutableStateOf<SpeechConfig?>(null) }
+        val audioConfig = remember { mutableStateOf<AudioConfig?>(null) }
+
+        val userId = 1
+        val api = RetrofitClient.apiService
+        val repo = remember { AttendanceRepository(api) }
+        val vm: AttendanceViewModel = viewModel(
+            factory = AttendanceViewModelFactory(repo)
+        )
+
+        val attendance by vm.attendance.collectAsState()
+        val loading by vm.isLoading.collectAsState()
+        val error by vm.errorMessage.collectAsState()
+
+        LaunchedEffect(Unit) {
+            vm.markToday(userId)
+        }
+
+        LaunchedEffect(Unit) {
             try {
-                val jsonObject = org.json.JSONObject(assistantReply)
-                val replyText = jsonObject.optString("message", assistantReply)
-                Log.d(TTS_DEBUG_TAG, "Assistant reply received, attempting synthesis for: '$replyText'")
-                synthesizeSpeech(synthesizer, replyText)
-            } catch (e: org.json.JSONException) {
-                Log.w(TTS_DEBUG_TAG, "Received message is not valid JSON ('$assistantReply'). Synthesizing raw text.")
-                synthesizeSpeech(synthesizer, assistantReply)
-            } finally {
+                val speechKey = "4a5877d33caa49bcbc19eade2c0fc602"
+                val serviceRegion = "centralindia"
+                Log.d(TTS_DEBUG_TAG, "Initializing Azure speech synthesizer...")
+                speechConfig.value = SpeechConfig.fromSubscription(speechKey, serviceRegion).apply {
+                    speechSynthesisVoiceName = "en-US-AvaMultilingualNeural"
+                }
+                audioConfig.value = AudioConfig.fromDefaultSpeakerOutput()
+                speechSynthesizer.value = SpeechSynthesizer(speechConfig.value, audioConfig.value)
+                Log.d(TTS_DEBUG_TAG, "Speech synthesizer initialized successfully.")
+            } catch (e: Exception) {
+                Log.e(TTS_DEBUG_TAG, "Failed to initialize speech synthesizer: ${e.message}", e)
+                Toast.makeText(context, "TTS Initialization Failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val clearText = remember {
+            {
+                Log.d("HomeVoice", "🧹 Clearing recognized text")
+                GlobalVoiceManager.clearCurrentText()
+            }
+        }
+
+        // ✅ ENHANCED: Monitor assistant reply and trigger AI speaking animation with text
+        val assistantReply = voiceMessageViewModel.receivedMessage.collectAsState().value
+        LaunchedEffect(assistantReply) {
+            val synthesizer = speechSynthesizer.value
+            if (assistantReply.isNotEmpty() && synthesizer != null) {
+                try {
+                    val jsonObject = org.json.JSONObject(assistantReply)
+                    val replyText = jsonObject.optString("message", assistantReply)
+                    Log.d(TTS_DEBUG_TAG, "Assistant reply received, attempting synthesis for: '$replyText'")
+
+                    // ✅ SET AI RESPONSE TEXT FOR TYPEWRITER
+                    currentAIResponse = replyText
+                    isAISpeaking = true
+                    Log.d("HomeScreen", "🤖 AI Speaking animation started with text: '${replyText.take(50)}...'")
+
+                    // Enhanced speech synthesis with animation control
+                    synthesizeSpeechWithAnimation(synthesizer, replyText) { speaking ->
+                        isAISpeaking = speaking
+                        if (!speaking) {
+                            Log.d("HomeScreen", "🤖 AI Speaking animation stopped")
+                            // ✅ CLEAR AI RESPONSE TEXT WHEN SPEAKING STOPS
+                            currentAIResponse = ""
+                        }
+                    }
+
+                } catch (e: org.json.JSONException) {
+                    Log.w(TTS_DEBUG_TAG, "Received message is not valid JSON ('$assistantReply'). Synthesizing raw text.")
+
+                    // ✅ SET AI RESPONSE TEXT for raw text too
+                    currentAIResponse = assistantReply
+                    isAISpeaking = true
+                    Log.d("HomeScreen", "🤖 AI Speaking animation started (raw text): '${assistantReply.take(50)}...'")
+
+                    synthesizeSpeechWithAnimation(synthesizer, assistantReply) { speaking ->
+                        isAISpeaking = speaking
+                        if (!speaking) {
+                            Log.d("HomeScreen", "🤖 AI Speaking animation stopped (raw text)")
+                            // ✅ CLEAR AI RESPONSE TEXT WHEN SPEAKING STOPS
+                            currentAIResponse = ""
+                        }
+                    }
+                } finally {
+                    voiceMessageViewModel.clearReceivedMessage()
+                }
+            } else if (assistantReply.isNotEmpty() && synthesizer == null) {
+                Log.w(TTS_DEBUG_TAG, "Received message but synthesizer is not ready.")
                 voiceMessageViewModel.clearReceivedMessage()
             }
-        } else if (assistantReply.isNotEmpty() && synthesizer == null) {
-            Log.w(TTS_DEBUG_TAG, "Received message but synthesizer is not ready.")
-            voiceMessageViewModel.clearReceivedMessage()
         }
-    }
 
-    // Clean up TTS resources on dispose
-    DisposableEffect(Unit) {
-        onDispose {
-            Log.d(TTS_DEBUG_TAG, "HomeScreen disposing. Cleaning up TTS resources.")
-            scope.launch(Dispatchers.IO) {
-                try {
-                    speechSynthesizer.value?.close()
-                    speechConfig.value?.close()
-                    audioConfig.value?.close()
-                    Log.d(TTS_DEBUG_TAG, "TTS resources closed.")
-                } catch (e: Exception) {
-                    Log.e(TTS_DEBUG_TAG, "Error cleaning up TTS resources: ${e.message}")
+        DisposableEffect(Unit) {
+            onDispose {
+                Log.d(TTS_DEBUG_TAG, "HomeScreen disposing. Cleaning up TTS resources.")
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        isAISpeaking = false
+                        currentAIResponse = "" // ✅ Clear AI response
+                        aiSpeakingJob?.cancel()
+                        speechSynthesizer.value?.close()
+                        speechConfig.value?.close()
+                        audioConfig.value?.close()
+                        Log.d(TTS_DEBUG_TAG, "TTS resources closed.")
+                    } catch (e: Exception) {
+                        Log.e(TTS_DEBUG_TAG, "Error cleaning up TTS resources: ${e.message}")
+                    }
                 }
             }
         }
-    }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.75f)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Menu", style = MaterialTheme.typography.titleMedium)
-                }
-                Divider()
-                NavigationDrawerItem(
-                    label = { Text("Home") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() } },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Settings") },
-                    selected = false,
-                    onClick = {
-                        navController.navigate("settings")
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Logout") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        Log.d("HomeScreen", "Logout Action - Implement")
-                    },
-                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = "Logout") }
-                )
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = true,
+            drawerContent = {
+                HomeDrawerContent(navController, drawerState)
             }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Transparent
-                    ),
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent
+                        ),
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu")
+                            }
+                        },
+                        title = { },
+                        actions = {
+                            IconButton(onClick = { }) {
+                                Icon(
+                                    painter = painterResource(R.drawable.premium),
+                                    contentDescription = "Premium Features",
+                                    modifier = Modifier.size(24.dp),
+                                    tint = Color.Unspecified
+                                )
+                            }
                         }
-                    },
-                    title = { },
-                    actions = {
-                        IconButton(onClick = { }) {
-                            Icon(
-                                painter = painterResource(R.drawable.premium),
-                                contentDescription = "Premium Features",
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.Unspecified
+                    )
+                },
+                bottomBar = {
+                    // ✅ CRITICAL: Pass the voice states from VoiceEnabledScreen
+                    BottomNavigationBar(
+                        navController = navController,
+                        voiceMessageViewModel = voiceMessageViewModel,
+                        onSoundLevelChanged = { level -> currentSoundLevel = level },
+                        recordAudioPermission = recordAudioPermission,
+                        // ✅ Enhanced voice parameters
+                        isListening = isListening,
+                        recognizedText = recognizedText,
+                        networkAvailable = networkAvailable,
+                        startVoice = startVoice,
+                        stopVoice = stopVoice,
+                        restartSession = restartSession,
+                        onClearText = clearText
+                    )
+                }
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(400.dp)
+                        ) {
+                            // ✅ UPDATED: Pass AI response text to animation
+                            EmotionsDiagramAnimatedUI(
+                                soundLevel = currentSoundLevel,
+                                isAISpeaking = isAISpeaking,
+                                aiResponseText = currentAIResponse, // ✅ Pass current AI response
+                                showFullResponse = false // ✅ Show summary for better UX
                             )
                         }
                     }
-                )
-            },
-            bottomBar = {
-                BottomNavigationBar(
-                    navController = navController,
-                    voiceMessageViewModel = voiceMessageViewModel
-                )
-            }
-        ) { innerPadding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .background(MaterialTheme.colorScheme.background)
-            ) {
-                item {
-                    // Large top area with the emotions diagram
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(400.dp)
-                    ) {
-                        EmotionsDiagramAnimatedUI()
+
+                    item { SectionHeader(title = "SyllabusHub") }
+                    item {
+                        SubjectList(
+                            navController = navController,
+                            forceRefresh = needsRefreshSubjects.value
+                        )
                     }
+                    item {
+                        Text(
+                            text = "VirtuBeings",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier
+                                .padding(start = 16.dp, top = 8.dp, bottom = 6.dp),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        AIProfileScreen(navController)
+                    }
+                    item { EnhancedUserProfile(navController) }
+                    item { GridScreen(navController) }
+                    item { EnhancedAgentList(navController) }
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item { TrendingSection(navController) }
+                    item { LibrarySection(navController) }
+                    item { Animation(navController) }
                 }
-
-                item { SectionHeader(title = "SyllabusHub") }
-                item { SubjectList(navController) }
-
-
-                item {
-                    Text(
-                        text = "VirtuBeings",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .padding(start = 16.dp, top = 8.dp, bottom = 6.dp),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    AIProfileScreen(navController)
-                }
-
-                // Enhanced user profile card (matching AIProfile color)
-                item { EnhancedUserProfile(navController) }
-
-                item { GridScreen(navController) }
-
-                // Updated AgentList (same color as AIProfile)
-                item { EnhancedAgentList(navController) }
-
-                // Reduced space before the bottom Animation (16.dp now)
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-
-                // … in your LazyColumn:
-                item {
-
-
-                    LibrarySection(navController) }
-
-
-                // The Enhanced Animation at the bottom
-                item { Animation(navController) }
-
-
             }
         }
     }
@@ -592,314 +1547,6 @@ fun HomeScreen(
 // ----------------------------------------------------------------------------------------
 // Bottom NavigationBar (unchanged except for minor label updates)
 // ----------------------------------------------------------------------------------------
-@OptIn(ExperimentalPermissionsApi::class)
-@Composable
-fun BottomNavigationBar(
-    navController: NavController,
-    voiceMessageViewModel: VoiceMessageViewModel
-) {
-    val context = LocalContext.current
-
-    var isMicOn by remember { mutableStateOf(false) }
-    var selectedRoute by remember { mutableStateOf("CreateSubjectScreen") }
-    var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
-    var isReadyForSpeech by remember { mutableStateOf(false) }
-
-    val recognizedText by voiceMessageViewModel.recognizedText.collectAsState()
-    val showSendButton = recognizedText.isNotEmpty()
-
-    val recordAudioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
-    val restartHandler = remember { Handler(Looper.getMainLooper()) }
-    var restartRunnable by remember { mutableStateOf<Runnable?>(null) }
-
-    fun cancelRestart() {
-        restartRunnable?.let { restartHandler.removeCallbacks(it) }
-        restartRunnable = null
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            Log.d(MIC_DEBUG_TAG, "BottomNavigationBar disposing. Cancelling restart and destroying recognizer.")
-            cancelRestart()
-            recognizer?.stopListening()
-            recognizer?.destroy()
-        }
-    }
-
-    val regularListener = remember {
-        object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                Log.d(MIC_DEBUG_TAG, "onReadyForSpeech")
-                isReadyForSpeech = true
-            }
-            override fun onBeginningOfSpeech() {
-                Log.d(MIC_DEBUG_TAG, "onBeginningOfSpeech")
-            }
-            override fun onRmsChanged(rmsdB: Float) {
-                Log.d(MIC_DEBUG_TAG, "Audio level (RMS): $rmsdB")
-            }
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {
-                Log.d(MIC_DEBUG_TAG, "onEndOfSpeech")
-                isReadyForSpeech = false
-                if (isMicOn && recognizer != null) {
-                    restartListening(
-                        context = context,
-                        recognizer = recognizer!!,
-                        listener = this,
-                        handler = restartHandler,
-                        onRestart = { runnable -> restartRunnable = runnable },
-                        isMicOn = { isMicOn }
-                    )
-                }
-            }
-            override fun onError(error: Int) {
-                val errorText = getSpeechRecognizerErrorText(error)
-                Log.e(MIC_DEBUG_TAG, "onError: $errorText ($error)")
-                isReadyForSpeech = false
-                if (!isMicOn && error == SpeechRecognizer.ERROR_CLIENT) {
-                    Log.d(MIC_DEBUG_TAG, "Ignoring client error because mic is off.")
-                    return
-                }
-                when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH,
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        if (isMicOn && recognizer != null) {
-                            restartListening(
-                                context = context,
-                                recognizer = recognizer!!,
-                                listener = this,
-                                handler = restartHandler,
-                                onRestart = { runnable -> restartRunnable = runnable },
-                                isMicOn = { isMicOn }
-                            )
-                        } else {
-                            isMicOn = false
-                        }
-                    }
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS,
-                    SpeechRecognizer.ERROR_CLIENT,
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                    SpeechRecognizer.ERROR_NETWORK,
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
-                    SpeechRecognizer.ERROR_SERVER -> {
-                        isMicOn = false
-                        voiceMessageViewModel.updateRecognizedText("")
-                        Toast.makeText(context, "Voice input error: $errorText", Toast.LENGTH_SHORT).show()
-                    }
-                    else -> {
-                        isMicOn = false
-                        voiceMessageViewModel.updateRecognizedText("")
-                    }
-                }
-            }
-            override fun onResults(results: Bundle?) {
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val bestResult = matches?.firstOrNull()?.trim() ?: ""
-                if (bestResult.isNotEmpty()) {
-                    voiceMessageViewModel.updateRecognizedText(bestResult)
-                }
-                if (isMicOn && recognizer != null) {
-                    restartListening(
-                        context = context,
-                        recognizer = recognizer!!,
-                        listener = this,
-                        handler = restartHandler,
-                        onRestart = { runnable -> restartRunnable = runnable },
-                        isMicOn = { isMicOn }
-                    )
-                }
-            }
-            override fun onPartialResults(partialResults: Bundle?) {
-                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val partialResult = matches?.firstOrNull()?.trim() ?: ""
-                if (partialResult.isNotEmpty()) {
-                    voiceMessageViewModel.updateRecognizedText(partialResult)
-                }
-            }
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        }
-    }
-
-    // Effect to handle mic on/off
-    LaunchedEffect(isMicOn, recordAudioPermission.status, recognizer) {
-        if (recognizer == null) {
-            Log.w(MIC_DEBUG_TAG, "Recognizer is null. Cannot start listening.")
-            if (isMicOn) isMicOn = false
-            return@LaunchedEffect
-        }
-        if (isMicOn) {
-            if (recordAudioPermission.status.isGranted) {
-                startRegularListening(context, recognizer!!, regularListener)
-            } else {
-                if (recordAudioPermission.status is PermissionStatus.Denied &&
-                    !(recordAudioPermission.status as PermissionStatus.Denied).shouldShowRationale
-                ) {
-                    Toast.makeText(context, "Microphone permission is required.", Toast.LENGTH_LONG).show()
-                    isMicOn = false
-                    voiceMessageViewModel.updateRecognizedText("")
-                }
-            }
-        } else {
-            if (isReadyForSpeech) {
-                recognizer?.stopListening()
-            }
-            cancelRestart()
-        }
-    }
-
-    // Dispose effect to destroy recognizer
-    DisposableEffect(Unit) {
-        onDispose {
-            recognizer?.destroy()
-        }
-    }
-
-    // Bottom bar container
-    Surface(
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        tonalElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column {
-            // If user has partially recognized text, show it above the bar
-            AnimatedVisibility(visible = recognizedText.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = recognizedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 3
-                    )
-                    if (showSendButton) {
-                        IconButton(
-                            onClick = {
-                                voiceMessageViewModel.sendVoiceMessage(recognizedText)
-                                voiceMessageViewModel.updateRecognizedText("")
-                            },
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.menu),
-                                contentDescription = "Send Message",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Actual navigation bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min)
-            ) {
-                NavigationBar(
-                    containerColor = Color.Transparent,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                ) {
-                    CustomNavigationBarItem(
-                        label = "Subject",
-                        iconResId = R.drawable.curriculum,
-                        isSelected = selectedRoute == "CreateSubjectScreen",
-                        onClick = {
-                            selectedRoute = "CreateSubjectScreen"
-                            navController.navigate("CreateSubjectScreen") { launchSingleTop = true }
-                        }
-                    )
-                    CustomNavigationBarItem(
-                        label = "Feed",
-                        iconResId = R.drawable.play,
-                        isSelected = selectedRoute == "ReelsScreen",
-                        onClick = {
-                            selectedRoute = "ReelsScreen"
-                            navController.navigate("ReelsScreen") { launchSingleTop = true }
-                        }
-                    )
-                    // Mic button
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = {
-                            if (!isMicOn && !recordAudioPermission.status.isGranted) {
-                                recordAudioPermission.launchPermissionRequest()
-                            } else {
-                                if (isMicOn) {
-                                    if (isReadyForSpeech) {
-                                        recognizer?.stopListening()
-                                    }
-                                    cancelRestart()
-                                    isMicOn = false
-                                } else {
-                                    recognizer?.destroy()
-                                    recognizer = SpeechRecognizer.createSpeechRecognizer(context)
-                                    isMicOn = true
-                                }
-                            }
-                        },
-                        icon = {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isMicOn)
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                        else
-                                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    painter = painterResource(
-                                        id = if (isMicOn)
-                                            R.drawable.baseline_mic_24
-                                        else
-                                            R.drawable.baseline_mic_off_24
-                                    ),
-                                    contentDescription = if (isMicOn) "Microphone On" else "Microphone Off",
-                                    modifier = Modifier.size(26.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                if (isMicOn) {
-                                    VoiceVisualizer(modifier = Modifier.matchParentSize())
-                                }
-                            }
-                        },
-                        label = {}
-                    )
-                    CustomNavigationBarItem(
-                        label = "Matric",
-                        iconResId = R.drawable.graph,
-                        isSelected = selectedRoute == "library",
-                        onClick = {
-                            selectedRoute = "library"
-                            navController.navigate("library") { launchSingleTop = true }
-                        }
-                    )
-                    CustomNavigationBarItem(
-                        label = "Character",
-                        iconResId = R.drawable.bot,
-                        isSelected = selectedRoute == "settings",
-                        onClick = {
-                            selectedRoute = "settings"
-                            navController.navigate("CharacterCreateScreen") { launchSingleTop = true }
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun RowScope.CustomNavigationBarItem(
@@ -916,7 +1563,7 @@ fun RowScope.CustomNavigationBarItem(
                 painter = painterResource(id = iconResId),
                 contentDescription = label,
                 modifier = Modifier.size(22.dp),
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                tint = Color.Unspecified
             )
         },
         label = {
@@ -928,6 +1575,535 @@ fun RowScope.CustomNavigationBarItem(
         }
     )
 }
+
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun BottomNavigationBar(
+    navController: NavController,
+    voiceMessageViewModel: VoiceMessageViewModel,
+    onSoundLevelChanged: (Float) -> Unit = {},
+    recordAudioPermission: PermissionState,
+    // ✅ Enhanced parameters from VoiceEnabledScreen
+    isListening: Boolean = false,
+    recognizedText: String = "",
+    networkAvailable: Boolean = true,
+    startVoice: () -> Unit = {},
+    stopVoice: () -> Unit = {},
+    restartSession: () -> Unit = {},
+    onClearText: () -> Unit = {} // ✅ NEW: Proper text clearing
+) {
+    var selectedRoute by remember { mutableStateOf("CreateSubjectScreen") }
+    var showNetworkError by remember { mutableStateOf(false) }
+    var lastSentText by remember { mutableStateOf("") }
+
+    // ✅ Prevent duplicate message sends
+    val canSendMessage = remember(recognizedText, lastSentText) {
+        recognizedText.isNotEmpty() &&
+                recognizedText != lastSentText &&
+                recognizedText.length >= 3
+    }
+
+    // ✅ Debug logging with throttling
+    LaunchedEffect(isListening, recognizedText) {
+        Log.d("BottomNav", "🔄 State update - isListening: $isListening, text: '${recognizedText.take(30)}${if(recognizedText.length > 30) "..." else ""}'")
+    }
+
+    // ✅ Network status monitoring
+    LaunchedEffect(networkAvailable) {
+        if (!networkAvailable && isListening) {
+            showNetworkError = true
+            stopVoice()
+        }
+    }
+
+    Surface(
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        tonalElevation = 6.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+
+            // ✅ Network error banner
+            AnimatedVisibility(
+                visible = showNetworkError,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Network connection required for voice input",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { showNetworkError = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Face,
+                                contentDescription = "Dismiss",
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ✅ Enhanced voice input display
+            AnimatedVisibility(
+                visible = recognizedText.isNotEmpty(),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = recognizedText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            // ✅ Character count indicator
+                            if (recognizedText.isNotEmpty()) {
+                                Text(
+                                    text = "${recognizedText.length} characters",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // ✅ Action buttons row
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Clear button
+                            IconButton(
+                                onClick = {
+                                    Log.d("BottomNav", "🧹 Clearing text")
+                                    onClearText()
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Clear Text",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            // Send button
+                            AnimatedVisibility(visible = canSendMessage) {
+                                IconButton(
+                                    onClick = {
+                                        Log.d("BottomNav", "📤 Sending voice message: $recognizedText")
+                                        try {
+                                            voiceMessageViewModel.sendVoiceMessage(recognizedText)
+                                            lastSentText = recognizedText
+                                            onClearText()
+                                        } catch (e: Exception) {
+                                            Log.e("BottomNav", "❌ Error sending message", e)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.primary,
+                                            CircleShape
+                                        )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = "Send Message",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ✅ Enhanced listening status indicator
+            AnimatedVisibility(
+                visible = isListening,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // ✅ Enhanced pulsing indicator
+                        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                        val pulseAlpha by infiniteTransition.animateFloat(
+                            initialValue = 0.3f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(800, easing = EaseInOutCubic),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "pulseAlpha"
+                        )
+
+                        val pulseScale by infiniteTransition.animateFloat(
+                            initialValue = 0.8f,
+                            targetValue = 1.2f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1000, easing = EaseInOutCubic),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "pulseScale"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .scale(pulseScale)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha),
+                                    CircleShape
+                                )
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🎤 Listening for speech...",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+
+                            if (recognizedText.isNotEmpty()) {
+                                Text(
+                                    text = "\"${recognizedText.take(40)}${if (recognizedText.length > 40) "..." else ""}\"",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontStyle = FontStyle.Italic),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // ✅ Stop and restart buttons
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    Log.d("BottomNav", "🔄 Restart session clicked")
+                                    restartSession()
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Restart Session",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    Log.d("BottomNav", "🛑 Stop button clicked")
+                                    stopVoice()
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Stop Listening",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ✅ Navigation Bar
+            NavigationBar(
+                containerColor = Color.Transparent,
+                modifier = Modifier.fillMaxWidth().height(70.dp)
+            ) {
+
+                CustomNavigationBarItem(
+                    label = "Subject",
+                    iconResId = R.drawable.homeicon,
+                    isSelected = selectedRoute == "CreateSubjectScreen",
+                    onClick = {
+                        selectedRoute = "CreateSubjectScreen"
+                        navController.navigate("CreateSubjectScreen") { launchSingleTop = true }
+                    }
+                )
+
+                // ✅ ENHANCED: Production-ready mic button
+                val handleVoiceButtonClick = remember {
+                    {
+                        Log.d("BottomNav", "🎤 Mic button clicked - State: listening=$isListening, permission=${recordAudioPermission.status.isGranted}, network=$networkAvailable")
+
+                        when {
+                            !recordAudioPermission.status.isGranted -> {
+                                Log.d("BottomNav", "🔒 Requesting audio permission")
+                                recordAudioPermission.launchPermissionRequest()
+                            }
+                            !networkAvailable -> {
+                                Log.w("BottomNav", "📡 No network available")
+                                showNetworkError = true
+                            }
+                            isListening -> {
+                                Log.d("BottomNav", "🛑 Stopping voice recognition")
+                                stopVoice()
+                            }
+                            else -> {
+                                Log.d("BottomNav", "▶️ Starting voice session")
+                                showNetworkError = false
+                                onClearText() // Clear through proper callback
+                                startVoice()
+                            }
+                        }
+                    }
+                }
+
+                NavigationBarItem(
+                    selected = false,
+                    onClick = handleVoiceButtonClick,
+                    icon = {
+                        // ✅ Enhanced visual feedback with better animations
+                        val animatedColor by animateColorAsState(
+                            targetValue = when {
+                                !recordAudioPermission.status.isGranted ->
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                                !networkAvailable ->
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                                isListening ->
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                else ->
+                                    Color.Transparent
+                            },
+                            animationSpec = tween(300, easing = EaseInOutCubic),
+                            label = "buttonColor"
+                        )
+
+                        val animatedSize by animateFloatAsState(
+                            targetValue = if (isListening) 54f else 48f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "buttonSize"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .size(animatedSize.dp)
+                                .background(animatedColor, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // ✅ Icon with proper states
+                            Icon(
+                                painter = painterResource(
+                                    id = when {
+                                        !recordAudioPermission.status.isGranted ->
+                                            R.drawable.baseline_mic_off_24
+                                        !networkAvailable ->
+                                            R.drawable.baseline_mic_off_24
+                                        isListening ->
+                                            R.drawable.baseline_mic_24
+                                        else ->
+                                            R.drawable.baseline_mic_off_24
+                                    }
+                                ),
+                                contentDescription = when {
+                                    !recordAudioPermission.status.isGranted ->
+                                        "Microphone Permission Required"
+                                    !networkAvailable ->
+                                        "Network Required"
+                                    isListening ->
+                                        "Stop Listening"
+                                    else ->
+                                        "Start Listening"
+                                },
+                                modifier = Modifier.size(26.dp),
+                                tint = when {
+                                    !recordAudioPermission.status.isGranted ||
+                                            !networkAvailable ->
+                                        MaterialTheme.colorScheme.error
+                                    isListening ->
+                                        MaterialTheme.colorScheme.primary
+                                    else ->
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+
+                            // ✅ Voice visualizer when listening
+                            if (isListening) {
+                                VoiceVisualizer(
+                                    modifier = Modifier.matchParentSize(),
+                                    barColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                    soundLevel = 0.7f // Could be connected to actual audio levels
+                                )
+                            }
+                        }
+                    },
+                    label = {
+                        Text(
+                            text = when {
+                                !recordAudioPermission.status.isGranted -> "No Perm"
+                                !networkAvailable -> "No Net"
+                                isListening -> "Listening"
+                                else -> "Voice"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = when {
+                                !recordAudioPermission.status.isGranted ||
+                                        !networkAvailable ->
+                                    MaterialTheme.colorScheme.error
+                                isListening ->
+                                    MaterialTheme.colorScheme.primary
+                                else ->
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                )
+
+                CustomNavigationBarItem(
+                    label = "Matric",
+                    iconResId = R.drawable.graph,
+                    isSelected = selectedRoute == "MatricScreen",
+                    onClick = {
+                        selectedRoute = "MatricScreen"
+                        navController.navigate("MatricScreen") { launchSingleTop = true }
+                    }
+                )
+
+                CustomNavigationBarItem(
+                    label = "Character",
+                    iconResId = R.drawable.bot,
+                    isSelected = selectedRoute == "CharacterCreateScreen",
+                    onClick = {
+                        selectedRoute = "CharacterCreateScreen"
+                        navController.navigate("CharacterCreateScreen") {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            // ✅ Enhanced permission denied message
+            AnimatedVisibility(
+                visible = !recordAudioPermission.status.isGranted &&
+                        recordAudioPermission.status is PermissionStatus.Denied &&
+                        (recordAudioPermission.status as PermissionStatus.Denied).shouldShowRationale,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Place,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Microphone permission required for voice input",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = { recordAudioPermission.launchPermissionRequest() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(
+                                "Grant",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 // ----------------------------------------------------------------------------------------
 // Section Header
@@ -946,103 +2122,349 @@ fun SectionHeader(title: String) {
 // ----------------------------------------------------------------------------------------
 // Subject List
 // ----------------------------------------------------------------------------------------
+
+
+
+
 @Composable
 fun SubjectList(
     navController: NavController,
-    subjectlistViewModel: SubjectlistViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+    subjectlistViewModel: SubjectlistViewModel = viewModel(
         factory = SubjectlistViewModelFactory(
             SubjectlistRepository(RetrofitClient.apiService)
         )
-    )
+    ),
+    forceRefresh: Boolean = false
 ) {
+    // Get the UserInfoViewModel
+    val userInfoViewModel: UserInfoViewModel = viewModel()
+
+    // Get the context
+    val context = LocalContext.current
+
+    // Observe the userId
+    val userId by userInfoViewModel.userId.collectAsState()
+
+    // Observe the preloaded subject list
     val subjects by subjectlistViewModel.subjectList.collectAsState()
-    LaunchedEffect(Unit) {
-        subjectlistViewModel.fetchSubjectList()
+
+    // Observe loading state (from the updated ViewModel)
+    val isLoading by subjectlistViewModel.isLoading.collectAsState()
+
+    // Consolidated refresh state - responds to both forceRefresh and ActivityResult
+    val refreshRequested = remember { mutableStateOf(forceRefresh) }
+
+    // Create activity result launcher
+    val createSubjectLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val shouldRefresh = result.data?.getBooleanExtra("REFRESH_SUBJECTS", false) ?: false
+            if (shouldRefresh) {
+                Log.d("SubjectList", "Received result to refresh subjects")
+                refreshRequested.value = true
+            }
+        }
     }
-    if (subjects.isEmpty()) {
+
+    // Load the userId when the composable is first created
+    LaunchedEffect(Unit) {
+        userInfoViewModel.loadUserId(context)
+    }
+
+    // Update based on forceRefresh changes from parent
+    LaunchedEffect(forceRefresh) {
+        if (forceRefresh) {
+            refreshRequested.value = true
+        }
+    }
+
+    // If the userId is valid, make sure the data is loaded
+    // This is a safety mechanism in case the data wasn't preloaded
+    LaunchedEffect(userId, refreshRequested.value) {
+        if (userId != NeuroEdApp.INVALID_USER_ID) {
+            if (refreshRequested.value) {
+                // Force a refresh of the data
+                Log.d("SubjectList", "Force refreshing subject list for user: $userId")
+                subjectlistViewModel.refreshSubjectList(userId)
+                // Reset the refresh flag after requesting refresh
+                refreshRequested.value = false
+            } else {
+                // Normal load (will be a no-op if already loaded)
+                Log.d("SubjectList", "Ensuring subject list is loaded for user: $userId")
+                subjectlistViewModel.fetchSubjectList(userId)
+            }
+        }
+    }
+
+    // Track when the screen appears in composition using lifecycle
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // Refresh the subject list when screen becomes visible again
+                if (userId != NeuroEdApp.INVALID_USER_ID) {
+                    Log.d("SubjectList", "Screen resumed - refreshing subject list")
+                    subjectlistViewModel.refreshSubjectList(userId)
+                }
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Add a debug log to verify data availability
+    LaunchedEffect(subjects) {
+        Log.d("SubjectList", "Subjects available on render: ${subjects.size}")
+    }
+
+    // Main content
+    if (isLoading && subjects.isEmpty()) {
+        // Loading UI
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 3.dp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Loading subjects...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    } else if (subjects.isEmpty()) {
+        // Empty state UI
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "No subjects found",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        try {
+                            val componentName = ComponentName(
+                                context.packageName,
+                                "com.example.neuroed.CreateSubjectScreen"
+                            )
+                            val intent = Intent().setComponent(componentName)
+                            createSubjectLauncher.launch(intent)
+                        } catch (e: Exception) {
+                            Log.e("SubjectList", "Error launching CreateSubjectScreen", e)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Create Your First Subject")
+                }
+            }
         }
     } else {
+        // Display the subjects in a row
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(subjects) { subject ->
-                Card(
-                    modifier = Modifier
-                        .clickable {
-                            navController.navigate("SyllabusScreen/${subject.id}/${subject.subjectDescription}/${subject.subject}")
-                        }
-                        .width(130.dp)
-                        .height(190.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AsyncImage(
-                            model = subject.subjectImage ?: R.drawable.biology,
-                            contentDescription = "Subject Image",
-                            placeholder = painterResource(id = R.drawable.mathssub),
-                            error = painterResource(id = R.drawable.biology),
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(10.dp))
+            // Show only first 3 subjects
+            val previewSubjects = subjects.take(3)
+            items(previewSubjects) { subject ->
+                SubjectCard(
+                    subject = subject,
+                    onClick = {
+                        navController.navigate(
+                            "SyllabusScreen/${subject.id}/${subject.subjectDescription}/${subject.subject}"
                         )
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(60.dp),
-                                progress = 1.0f,
-                                color = Color.White,
-                                strokeWidth = 6.dp
-                            )
-                            Text(
-                                text = "100%",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .padding(8.dp)
-                                .align(Alignment.TopStart)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.Black.copy(alpha = 0.7f))
-                                .padding(horizontal = 6.dp, vertical = 3.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = subject.subject,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
-                }
+                )
+            }
+
+            // "See All" card
+            item {
+                SeeAllCard(onClick = { navController.navigate("FullSubjectListScreen") })
             }
         }
     }
 }
+
+
+
+
+
+// Subject Card component (extracted for reusability)
+@Composable
+fun SubjectCard(
+    subject: SubjectlistResponse,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .width(130.dp)
+            .height(190.dp),
+        shape = RoundedCornerShape(13.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = subject.subjectImage ?: R.drawable.biology,
+                contentDescription = "Subject Image",
+                placeholder = painterResource(id = R.drawable.mathssub),
+                error = painterResource(id = R.drawable.biology),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(10.dp))
+            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(60.dp),
+                    progress = 1.0f,
+                    color = Color.White,
+                    strokeWidth = 6.dp
+                )
+                Text(
+                    text = "100%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(Alignment.TopStart)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = subject.subject,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+// SeeAll Card component (extracted for reusability)
+@Composable
+fun SeeAllCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .width(130.dp)
+            .height(190.dp),
+        shape = RoundedCornerShape(13.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.8f)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.baseline_add_24),
+                    contentDescription = "See All",
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "See All",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
 
 // ----------------------------------------------------------------------------------------
 // Enhanced UserProfile (now matches AIProfileCard color)
 // ----------------------------------------------------------------------------------------
 @Composable
 fun EnhancedUserProfile(
-    navController: NavController,
+    navController: NavController
 ) {
+    val context = LocalContext.current
+
+    val userId by remember {
+        derivedStateOf {
+            val sharedPrefs = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+            sharedPrefs.getInt("userInfoId", -1)
+        }
+    }
+
+    if (userId == -1) {
+        // Loading state
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    val apiService = remember { RetrofitClient.apiService }
+    val repository = remember { UserProfileRepository(apiService) }
+    val viewModel: UserProfileViewModel = viewModel(
+        factory = UserProfileViewModelFactory(repository, userId)
+    )
+
+    // Observe the profile data
+    val profileState by viewModel.userProfile.observeAsState()
+
+    // ✅ SOLUTION: Assign to local variable to enable smart cast
+    val profile = profileState
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1050,7 +2472,6 @@ fun EnhancedUserProfile(
             .clickable { navController.navigate("ProfileScreen") },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(6.dp),
-        // Use the same color as AIProfileCard => MaterialTheme.colorScheme.surface
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
@@ -1059,28 +2480,56 @@ fun EnhancedUserProfile(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.biology),
-                contentDescription = "User Profile",
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-            )
+            // User Avatar
+            if (profile?.avatarUrl?.isNotEmpty() == true) {
+                AsyncImage(
+                    model = profile.avatarUrl, // ✅ Now this works
+                    contentDescription = "User Profile",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "User Profile",
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.width(16.dp))
 
             Column {
+                // Real user name
                 Text(
-                    text = "John Doe",
+                    text = profile?.user_name ?: "Loading...",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // XP Progress Bar
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val progressFraction = if (profile != null && profile.maxXpForLevel > 0) {
+                        profile.currentXp.toFloat() / profile.maxXpForLevel.toFloat() // ✅ Works now
+                    } else 0f
+
                     LinearProgressIndicator(
-                        progress = 0.7f,
+                        progress = progressFraction,
                         modifier = Modifier
                             .weight(1f)
                             .height(8.dp)
@@ -1088,20 +2537,28 @@ fun EnhancedUserProfile(
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                     )
+
                     Spacer(modifier = Modifier.width(8.dp))
+
                     Text(
-                        text = "Level 10",
+                        text = "Level ${profile?.level ?: 0}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Stars based on level
                 Row {
+                    val userLevel = profile?.level ?: 0
+                    val filledStars = minOf(5, maxOf(0, userLevel / 2))
+
                     repeat(5) { index ->
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = "Star",
-                            tint = if (index < 4) Color(0xFFFFD700) else Color.Gray,
+                            tint = if (index < filledStars) Color(0xFFFFD700) else Color.Gray,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1111,47 +2568,126 @@ fun EnhancedUserProfile(
     }
 }
 
+
 // ----------------------------------------------------------------------------------------
 // VoiceVisualizer
 // ----------------------------------------------------------------------------------------
 @Composable
 fun VoiceVisualizer(
     modifier: Modifier = Modifier,
-    barCount: Int = 5,
+    soundLevel: Float = 0.5f, // ✅ Added missing soundLevel parameter
+    barCount: Int = 4,
     barColor: Color = Color.White,
-    minHeight: Dp = 4.dp,
-    maxHeight: Dp = 16.dp,
-    barWidth: Dp = 4.dp,
-    spaceBetween: Dp = 2.dp
+    minHeight: Dp = 3.dp,
+    maxHeight: Dp = 12.dp,
+    barWidth: Dp = 2.dp,
+    spaceBetween: Dp = 1.dp,
+    animationSpeed: Int = 400, // ✅ Configurable animation speed
+    isActive: Boolean = true // ✅ Control animation state
 ) {
-    val infiniteTransition = rememberInfiniteTransition()
+    val infiniteTransition = rememberInfiniteTransition(label = "voiceVisualizer")
+
+    // ✅ Sound level affects animation intensity
+    val adjustedSoundLevel = soundLevel.coerceIn(0f, 1f)
+    val intensityMultiplier = if (isActive) (0.3f + adjustedSoundLevel * 0.7f) else 0f
+
     val animations = List(barCount) { index ->
         infiniteTransition.animateFloat(
             initialValue = 0f,
-            targetValue = 1f,
+            targetValue = intensityMultiplier,
             animationSpec = infiniteRepeatable(
                 animation = tween(
-                    durationMillis = 500,
-                    easing = LinearEasing,
-                    delayMillis = index * 100
+                    durationMillis = animationSpeed + (index * 100),
+                    easing = LinearEasing
                 ),
                 repeatMode = RepeatMode.Reverse
-            )
+            ),
+            label = "bar_$index"
         )
     }
+
     Row(
-        modifier = modifier,
+        modifier = modifier.wrapContentSize(),
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(spaceBetween)
     ) {
-        animations.forEach { anim ->
-            val height = minHeight + (maxHeight - minHeight) * anim.value
+        animations.forEachIndexed { index, anim ->
+            // ✅ Different heights based on sound level and index
+            val baseHeight = minHeight + (maxHeight - minHeight) * anim.value
+            val variationFactor = 0.8f + (index % 2) * 0.4f // Alternate bar heights
+            val finalHeight = baseHeight * variationFactor
+
             Box(
                 modifier = Modifier
                     .width(barWidth)
-                    .height(height)
-                    .background(barColor, shape = RoundedCornerShape(2.dp))
+                    .height(finalHeight.coerceAtLeast(minHeight))
+                    .background(
+                        color = barColor.copy(
+                            alpha = if (isActive) 0.7f + anim.value * 0.3f else 0.3f
+                        ),
+                        shape = RoundedCornerShape(1.dp)
+                    )
             )
+        }
+    }
+}
+
+// ✅ Enhanced Voice Visualizer with Real-time Sound Level
+@Composable
+fun EnhancedVoiceVisualizer(
+    modifier: Modifier = Modifier,
+    soundLevel: Float = 0.5f,
+    isListening: Boolean = false,
+    barCount: Int = 6,
+    barColor: Color = MaterialTheme.colorScheme.primary,
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    showBackground: Boolean = true
+) {
+    val containerModifier = if (showBackground) {
+        modifier
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(8.dp)
+    } else {
+        modifier
+    }
+
+    Box(
+        modifier = containerModifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (isListening) {
+            VoiceVisualizer(
+                soundLevel = soundLevel,
+                barCount = barCount,
+                barColor = barColor,
+                minHeight = 4.dp,
+                maxHeight = 16.dp,
+                barWidth = 3.dp,
+                spaceBetween = 2.dp,
+                animationSpeed = 300,
+                isActive = true
+            )
+        } else {
+            // ✅ Static bars when not listening
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                repeat(barCount) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(4.dp)
+                            .background(
+                                color = barColor.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(1.dp)
+                            )
+                    )
+                }
+            }
         }
     }
 }
@@ -1173,14 +2709,15 @@ fun GridScreen(navController: NavController) {
         GridItemModel("Task", R.drawable.taskuser, "TaskScreen", badgecount = 10),
         GridItemModel("Exam", R.drawable.exam, "ExamScreen", badgecount = 1),
         GridItemModel("Recall", R.drawable.recall, "RecallingScreen"),
-        GridItemModel("Store", R.drawable.folders, "StoreScreen"),
-        GridItemModel("Mindmap", R.drawable.mindmap, "DocumentsScreen"),
-        GridItemModel("Assignents", R.drawable.contract, "AssignmentScreen"),
-        GridItemModel("Playground", R.drawable.readingbook, "PlaygroundScreen"),
+        GridItemModel("Cloud", R.drawable.clouddownload, "StoreScreen"),
+        GridItemModel("Mindmap", R.drawable.mindmap, "MindmapScreen"),
+        GridItemModel("Assignents", R.drawable.writing, "AssignmentScreen"),
+        GridItemModel("Playground", R.drawable.student, "PlaygroundScreen"),
         GridItemModel("Meditation", R.drawable.meditation, "MeditationScreen"),
-        GridItemModel("ClassRoom", R.drawable.training, "Meditation"),
+        GridItemModel("ClassRoom", R.drawable.training, "ChallengeScreen"),
         GridItemModel("MultLang", R.drawable.translation, "LanguagelearnScreen"),
         GridItemModel("Game", R.drawable.game, "GamesScreen")
+
     )
 
     Box(
@@ -1296,6 +2833,7 @@ fun EnhancedAgentList(navController: NavController) {
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(CircleShape)
+                                .clickable { navController.navigate("agent_action") }
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Image(
@@ -1352,36 +2890,111 @@ fun EnhancedAgentList(navController: NavController) {
 // Emotions Diagram (BuddyAI glow animation remains unchanged)
 // ----------------------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ----------------------------------------------------------------------------------------
+// AI Profile Screen (with some spacing around the row)
+// ----------------------------------------------------------------------------------------
+
+fun lerp(start: Float, stop: Float, fraction: Float): Float {
+    return (start * (1 - fraction) + stop * fraction)
+}
+
 @Composable
-fun EmotionsDiagramAnimatedUI(modifier: Modifier = Modifier) {
+fun EmotionsDiagramAnimatedUI(
+    modifier: Modifier = Modifier,
+    soundLevel: Float = 0f,
+    isAISpeaking: Boolean = false,
+    aiResponseText: String = "", // ✅ NEW: AI response from backend
+    showFullResponse: Boolean = false // ✅ NEW: Control full text or summary
+) {
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            SoundReactiveGlowingRing(
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            JarvisStyleRing(
                 text = "BuddyAI",
                 ringColor = Color(0xFF00E5FF),
-                ringRadiusRatio = 0.38f
+                ringRadiusRatio = 0.38f,
+                externalSoundLevel = soundLevel,
+                isAISpeaking = isAISpeaking,
+                aiResponseText = aiResponseText, // ✅ Pass AI response
+                showFullResponse = showFullResponse // ✅ Pass display preference
             )
         }
     }
 }
 
+
+
+
 @Composable
-fun SoundReactiveGlowingRing(
+fun JarvisStyleRing(
     text: String,
     ringColor: Color,
-    ringRadiusRatio: Float = 0.38f
+    ringRadiusRatio: Float = 0.38f,
+    externalSoundLevel: Float = 0f,
+    isAISpeaking: Boolean = false,
+    aiResponseText: String = "",
+    showFullResponse: Boolean = false
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var soundLevel by remember { mutableStateOf(0f) }
+    var soundLevel by remember { mutableStateOf(externalSoundLevel) }
     var displayText by remember { mutableStateOf(text) }
     var isListening by remember { mutableStateOf(false) }
     var currentEmotion by remember { mutableStateOf("neutral") }
 
+    // Typewriter animation states
+    var typewriterText by remember { mutableStateOf("") }
+    var isTyping by remember { mutableStateOf(false) }
+    var currentCharIndex by remember { mutableStateOf(0) }
+
+    LaunchedEffect(externalSoundLevel) {
+        soundLevel = externalSoundLevel
+    }
+
+    // Stars animation data
+    data class Star(
+        val initialX: Float,
+        val initialY: Float,
+        val baseAlpha: Float,
+        val twinkleOffset: Float,
+        val twinkleSpeed: Float,
+        val moveSpeed: Float
+    )
+    val starCount = 60
+    val randomSeed = remember { Random(System.currentTimeMillis()) }
+    val stars = remember {
+        List(starCount) {
+            Star(
+                initialX = randomSeed.nextFloat(),
+                initialY = randomSeed.nextFloat(),
+                baseAlpha = 0.2f + randomSeed.nextFloat() * 0.6f,
+                twinkleOffset = randomSeed.nextFloat() * 2 * PI.toFloat(),
+                twinkleSpeed = 0.5f + randomSeed.nextFloat() * 1.5f,
+                moveSpeed = 0.3f + randomSeed.nextFloat() * 1.5f
+            )
+        }
+    }
+
+    // Color transition for emotions
     val transitionSize = 200
     val colorTransition = updateTransition(currentEmotion, label = "colorTransition")
     val currentRingColor by colorTransition.animateColor(
@@ -1400,6 +3013,7 @@ fun SoundReactiveGlowingRing(
         }
     }
 
+    // TTS Integration
     val ttsHolder = remember { mutableStateOf<TextToSpeech?>(null) }
     val tts = remember {
         TextToSpeech(context, TextToSpeech.OnInitListener { status ->
@@ -1418,100 +3032,61 @@ fun SoundReactiveGlowingRing(
         onDispose { tts.shutdown() }
     }
 
-    var pressing by remember { mutableStateOf(false) }
-    var pressStartTime by remember { mutableStateOf<Long?>(null) }
-    val painFactor by derivedStateOf {
-        if (pressing && pressStartTime != null) {
-            val pressDuration = System.currentTimeMillis() - pressStartTime!!
-            (pressDuration / 3000f).coerceIn(0f, 1f)
-        } else 0f
-    }
-    val painMessages = listOf(
-        "Ouch...",
-        "This really hurts...",
-        "Aghh! Please stop!",
-        "ARGHH!!!"
-    )
-    val currentPainMessage by derivedStateOf {
-        when {
-            painFactor < 0.25f -> painMessages[0]
-            painFactor < 0.5f  -> painMessages[1]
-            painFactor < 0.75f -> painMessages[2]
-            else               -> painMessages[3]
-        }
-    }
-    val painColor = Color.Red
-    val finalRingColor = lerp(start = currentRingColor, stop = painColor, fraction = painFactor)
-    val ringScaleX by derivedStateOf { 1f - 0.3f * painFactor }
-    val ringScaleY by derivedStateOf { 1f - 0.4f * painFactor }
-
     var hasAudioPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                     PackageManager.PERMISSION_GRANTED
         )
     }
+
+    // Animation variables from SoundReactiveGlowingRing
     val baseRotationSpeed = 15000
     val rotationSpeed = remember { Animatable(baseRotationSpeed.toFloat()) }
     val infiniteTransition = rememberInfiniteTransition()
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(durationMillis = rotationSpeed.value.toInt(), easing = LinearEasing))
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = rotationSpeed.value.toInt(),
+                easing = LinearEasing
+            )
+        )
     )
+
     val basePulseMin = 0.95f
     val basePulseMax = 1.05f
     val pulseSize by infiniteTransition.animateFloat(
         initialValue = basePulseMin,
         targetValue = basePulseMax,
-        animationSpec = infiniteRepeatable(animation = tween(2000, easing = EaseInOutQuad), repeatMode = RepeatMode.Reverse)
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutQuad),
+            repeatMode = RepeatMode.Reverse
+        )
     )
     val dynamicPulse = remember { Animatable(1f) }
-    val baseGlowMin = 0.7f
-    val baseGlowMax = 1f
-    val glowIntensity by infiniteTransition.animateFloat(
-        initialValue = baseGlowMin,
-        targetValue = baseGlowMax,
-        animationSpec = infiniteRepeatable(animation = tween(3000, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse)
-    )
+
     val dynamicGlow = remember { Animatable(1f) }
     val wavePhase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 2 * PI.toFloat(),
-        animationSpec = infiniteRepeatable(animation = tween(4000, easing = LinearEasing))
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing)
+        )
     )
     val waveIntensity = remember { Animatable(1f) }
-    val polygonRotation1 by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(20000, easing = LinearEasing), repeatMode = RepeatMode.Restart)
-    )
-    val polygonRotation2 by infiniteTransition.animateFloat(
-        initialValue = 360f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(animation = tween(25000, easing = LinearEasing), repeatMode = RepeatMode.Restart)
-    )
 
-    data class Star(val x: Float, val y: Float, val baseAlpha: Float, val twinkleOffset: Float, val twinkleSpeed: Float)
-    val starCount = 60
-    val randomSeed = remember { Random(System.currentTimeMillis()) }
-    val stars = remember {
-        List(starCount) {
-            Star(
-                x = randomSeed.nextFloat(),
-                y = randomSeed.nextFloat(),
-                baseAlpha = 0.2f + randomSeed.nextFloat() * 0.6f,
-                twinkleOffset = randomSeed.nextFloat() * 2 * PI.toFloat(),
-                twinkleSpeed = 0.5f + randomSeed.nextFloat() * 1.5f
-            )
-        }
-    }
     val starTwinklePhase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 2 * PI.toFloat(),
-        animationSpec = infiniteRepeatable(animation = tween(4000, easing = LinearEasing), repeatMode = RepeatMode.Restart)
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
     )
+    val starMovementPhase = remember { Animatable(0f) }
 
+    // Response patterns
     val responsesByEmotion = mapOf(
         "listening"  to listOf("Listening...", "I hear you", "I'm here", "Tell me"),
         "thinking"   to listOf("Processing...", "Analyzing...", "Thinking...", "Computing...", "Learning..."),
@@ -1530,6 +3105,66 @@ fun SoundReactiveGlowingRing(
     val quietThreshold = 0.03f
     val loudThreshold = 0.1f
 
+    // Azure speech duration estimation - More accurate
+    fun estimateAzureSpeechDuration(text: String): Int {
+        val wordsPerMinute = 150f // Slower for better sync
+        val wordCount = text.split(" ").size
+        val estimatedMinutes = wordCount / wordsPerMinute
+        val estimatedMs = (estimatedMinutes * 60 * 1000).toInt()
+        val punctuationPauses = text.count { it in ".,!?;:" } * 500 // Longer pauses
+        return (estimatedMs + punctuationPauses).coerceAtLeast(3000) // Minimum 3 seconds
+    }
+
+    // Real Azure TTS event-driven typewriter animation
+    LaunchedEffect(aiResponseText, isAISpeaking) {
+        if (isAISpeaking && aiResponseText.isNotEmpty()) {
+            launch {
+                isTyping = true
+                typewriterText = ""
+                currentCharIndex = 0
+
+                delay(300) // Small delay before starting
+
+                val words = aiResponseText.split(" ")
+                val windowSize = 4 // Show 4 words at a time
+                var currentWordIndex = 0
+
+                // Start typewriter immediately when Azure TTS starts
+                while (currentWordIndex < words.size && isAISpeaking) {
+                    // Calculate window
+                    val windowStart = maxOf(0, currentWordIndex - windowSize + 1)
+                    val windowEnd = minOf(words.size, currentWordIndex + 1)
+                    val windowWords = words.subList(windowStart, windowEnd)
+
+                    // Update display
+                    typewriterText = windowWords.joinToString(" ")
+                    currentWordIndex++
+
+                    // Dynamic delay based on Azure TTS progress
+                    // Faster at start, slower near end for better sync
+                    val progressRatio = currentWordIndex.toFloat() / words.size
+                    val dynamicDelay = when {
+                        progressRatio < 0.3f -> 200L // Fast start
+                        progressRatio < 0.7f -> 350L // Medium
+                        else -> 500L // Slower end
+                    }
+
+                    delay(dynamicDelay)
+                }
+
+                isTyping = false
+            }
+        } else {
+            launch {
+                isTyping = false
+                typewriterText = ""
+                currentCharIndex = 0
+                displayText = text
+            }
+        }
+    }
+
+    // Audio processing
     LaunchedEffect(hasAudioPermission) {
         if (hasAudioPermission && !isListening) {
             isListening = true
@@ -1544,6 +3179,7 @@ fun SoundReactiveGlowingRing(
                 val buffer = ShortArray(bufferSize)
                 var silenceCounter = 0
                 lastTextChangeTime = System.currentTimeMillis()
+
                 while (isListening) {
                     val readResult = audioRecord.read(buffer, 0, bufferSize)
                     if (readResult > 0) {
@@ -1564,6 +3200,7 @@ fun SoundReactiveGlowingRing(
                             consecutiveQuietFrames = 0
                         }
 
+                        // Animation updates
                         launch {
                             rotationSpeed.animateTo(
                                 targetValue = (baseRotationSpeed * (1f - soundLevel * 0.7f)).toFloat(),
@@ -1581,7 +3218,13 @@ fun SoundReactiveGlowingRing(
                                 targetValue = 1f + (soundLevel * 3f),
                                 animationSpec = spring(stiffness = 300f)
                             )
+                            starMovementPhase.animateTo(
+                                targetValue = starMovementPhase.value + (soundLevel * 10f),
+                                animationSpec = spring(stiffness = 50f)
+                            )
                         }
+
+                        // Text display logic
                         val now = System.currentTimeMillis()
                         val timeSinceLastChange = now - lastTextChangeTime
                         if (normalized > 0.05f) {
@@ -1635,249 +3278,392 @@ fun SoundReactiveGlowingRing(
         onDispose { isListening = false }
     }
 
-    var hasSpokenPain by remember { mutableStateOf(false) }
-    LaunchedEffect(pressing, painFactor, currentPainMessage) {
-        if (pressing && painFactor >= 0.5f && !hasSpokenPain) {
-            tts.speak(currentPainMessage, TextToSpeech.QUEUE_FLUSH, null, null)
-            hasSpokenPain = true
-        }
-        if (!pressing) {
-            hasSpokenPain = false
-        }
+    val finalRingColor = if (isAISpeaking) {
+        Color(0xFF00E5FF)
+    } else {
+        currentRingColor
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize(0.9f)
-            .wrapContentSize(Alignment.Center)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressing = true
-                        pressStartTime = System.currentTimeMillis()
-                        try {
-                            awaitRelease()
-                        } finally {
-                            pressing = false
-                            pressStartTime = null
-                        }
-                    }
-                )
-            },
+            .wrapContentSize(Alignment.Center),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2, size.height / 2)
             val baseRadius = size.minDimension * ringRadiusRatio * pulseSize * dynamicPulse.value
+
+            // Draw animated stars (no glow)
             stars.forEach { star ->
-                val starX = star.x * size.width
-                val starY = star.y * size.height
+                val movementAngle = starMovementPhase.value * star.moveSpeed
+                val moveX = cos(movementAngle) * soundLevel * 30
+                val moveY = sin(movementAngle) * soundLevel * 30
+
+                val starX = (star.initialX * size.width) + moveX
+                val starY = (star.initialY * size.height) + moveY
+
                 val twinkle = sin(starTwinklePhase * star.twinkleSpeed + star.twinkleOffset).toFloat()
                 val starAlpha = (star.baseAlpha + twinkle * 0.2f).coerceIn(0f, 1f)
+                val starSize = 2f + (soundLevel * 3f)
+
                 drawCircle(
                     color = finalRingColor.copy(alpha = starAlpha * 0.4f),
-                    radius = 2f,
+                    radius = starSize,
                     center = Offset(starX, starY)
                 )
             }
-            withTransform({
-                scale(scaleX = ringScaleX, scaleY = ringScaleY, pivot = center)
-            }) {
-                fun drawPolygon(
-                    sides: Int,
-                    rotationAngle: Float,
-                    polygonRadius: Float,
-                    polygonColor: Color,
-                    alphaValue: Float
-                ) {
-                    if (sides < 3) return
-                    val path = Path().apply {
-                        val angleStep = 360f / sides
-                        var firstPoint = true
-                        for (i in 0 until sides) {
-                            val angle = (i * angleStep + rotationAngle) * (PI.toFloat() / 180f)
-                            val x = center.x + cos(angle) * polygonRadius
-                            val y = center.y + sin(angle) * polygonRadius
-                            if (firstPoint) {
-                                moveTo(x, y)
-                                firstPoint = false
-                            } else {
-                                lineTo(x, y)
-                            }
+
+            // Proper glowing ring layers from SoundReactiveGlowingRing
+            // Outer glow layer
+            drawCircle(
+                color = finalRingColor.copy(alpha = 0.2f * dynamicGlow.value),
+                radius = baseRadius + 30 * dynamicGlow.value,
+                center = center,
+                style = Stroke(width = 40f, cap = StrokeCap.Round)
+            )
+
+            // Middle glow layer
+            drawCircle(
+                color = finalRingColor.copy(alpha = 0.4f * dynamicGlow.value),
+                radius = baseRadius + 15 * dynamicGlow.value,
+                center = center,
+                style = Stroke(width = 25f, cap = StrokeCap.Round)
+            )
+
+            // Main ring with rotation and wave distortion
+            rotate(rotation) {
+                val segments = 180
+                val angleStep = (2 * PI / segments).toFloat()
+                val path = Path().apply {
+                    var firstPoint = true
+                    for (i in 0 until segments) {
+                        val angle = i * angleStep
+                        val distortionAmplitude = 8 * waveIntensity.value * sin(angle * 3 + wavePhase)
+                        val distortedRadius = baseRadius + distortionAmplitude
+                        val x = center.x + cos(angle) * distortedRadius
+                        val y = center.y + sin(angle) * distortedRadius
+                        if (firstPoint) {
+                            moveTo(x, y)
+                            firstPoint = false
+                        } else {
+                            lineTo(x, y)
                         }
-                        close()
                     }
-                    drawPath(
-                        path = path,
-                        color = polygonColor.copy(alpha = alphaValue),
-                        style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                    )
+                    close()
                 }
-                drawPolygon(
-                    sides = 6,
-                    rotationAngle = polygonRotation1,
-                    polygonRadius = baseRadius * 1.7f,
-                    polygonColor = finalRingColor,
-                    alphaValue = 0.18f
-                )
-                drawPolygon(
-                    sides = 8,
-                    rotationAngle = polygonRotation2,
-                    polygonRadius = baseRadius * 1.45f,
-                    polygonColor = finalRingColor,
-                    alphaValue = 0.16f
-                )
-                drawCircle(
-                    color = finalRingColor.copy(alpha = 0.2f * glowIntensity * dynamicGlow.value),
-                    radius = baseRadius + 30 * dynamicGlow.value,
-                    center = center,
-                    style = Stroke(width = 40f, cap = StrokeCap.Round)
-                )
-                drawCircle(
-                    color = finalRingColor.copy(alpha = 0.4f * glowIntensity * dynamicGlow.value),
-                    radius = baseRadius + 15 * dynamicGlow.value,
-                    center = center,
-                    style = Stroke(width = 25f, cap = StrokeCap.Round)
-                )
-                rotate(rotation) {
-                    val segments = 180
-                    val angleStep = (2 * PI / segments).toFloat()
-                    val path = Path().apply {
-                        var firstPoint = true
-                        for (i in 0 until segments) {
-                            val angle = i * angleStep
-                            val distortionAmplitude = 8 * waveIntensity.value * sin(angle * 3 + wavePhase)
-                            val distortedRadius = baseRadius + distortionAmplitude
-                            val x = center.x + cos(angle) * distortedRadius
-                            val y = center.y + sin(angle) * distortedRadius
-                            if (firstPoint) {
-                                moveTo(x, y)
-                                firstPoint = false
-                            } else {
-                                lineTo(x, y)
-                            }
-                        }
-                        close()
-                    }
-                    drawPath(
-                        path = path,
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                finalRingColor.copy(alpha = 0.8f * glowIntensity * dynamicGlow.value),
-                                finalRingColor.copy(alpha = 1f * glowIntensity * dynamicGlow.value),
-                                finalRingColor.copy(alpha = 0.8f * glowIntensity * dynamicGlow.value)
-                            ),
-                            start = Offset(center.x - baseRadius, center.y - baseRadius),
-                            end = Offset(center.x + baseRadius, center.y + baseRadius)
+                drawPath(
+                    path = path,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            finalRingColor.copy(alpha = 0.8f * dynamicGlow.value),
+                            finalRingColor.copy(alpha = 1f * dynamicGlow.value),
+                            finalRingColor.copy(alpha = 0.8f * dynamicGlow.value)
                         ),
-                        style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                    )
-                }
+                        start = Offset(center.x - baseRadius, center.y - baseRadius),
+                        end = Offset(center.x + baseRadius, center.y + baseRadius)
+                    ),
+                    style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
             }
         }
+
+        // Text display with smaller font and continuous flow
         val textScale = remember { Animatable(1f) }
-        LaunchedEffect(displayText) {
-            textScale.animateTo(1.2f, animationSpec = tween(150))
-            textScale.animateTo(1f, animationSpec = tween(150))
+        LaunchedEffect(displayText, typewriterText) {
+            textScale.animateTo(1.1f, animationSpec = tween(100))
+            textScale.animateTo(1f, animationSpec = tween(100))
         }
-        val finalTextToShow = if (pressing) currentPainMessage else displayText
+
+        val finalTextToShow = when {
+            isAISpeaking && typewriterText.isNotEmpty() -> typewriterText
+            isAISpeaking && typewriterText.isEmpty() -> "Processing..."
+            else -> displayText
+        }
+
         Text(
             text = finalTextToShow,
             color = Color.White,
-            fontSize = 30.sp,
+            fontSize = 16.sp, // Much smaller font size
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .align(Alignment.Center)
                 .scale(textScale.value)
-                .blur(radius = 0.5.dp)
+                .padding(horizontal = 60.dp) // More padding to keep text well inside ring
+                .widthIn(max = 200.dp), // Maximum width constraint
+            maxLines = 2, // Only 2 lines to stay within ring
+            lineHeight = 18.sp, // Tighter line height
+            overflow = TextOverflow.Clip // Clean cut, no ellipsis
         )
     }
 }
 
 
-// ----------------------------------------------------------------------------------------
-// AI Profile Screen (with some spacing around the row)
-// ----------------------------------------------------------------------------------------
 
 
-// 1. Fixed AIProfileScreen that properly handles the data
+
+// 1. Fixed AIProfileScreen - Shows only 3 characters + See All (like SubjectList)
 @Composable
 fun AIProfileScreen(
     navController: NavController,
 ) {
-    val userId = 1
-    val repository = remember { UserCharacterGet(RetrofitClient.apiService) }
+    val context = LocalContext.current
+
+    // Get UserInfoViewModel to fetch current user ID
+    val userInfoViewModel: UserInfoViewModel = viewModel()
+    val currentUserId by userInfoViewModel.userId.collectAsState()
+
+    // Load userId when composable starts
+    LaunchedEffect(Unit) {
+        userInfoViewModel.loadUserId(context)
+    }
+
+    // Determine actual user ID - NO DEFAULT FALLBACK
+    val actualUserId = remember(currentUserId) {
+        when {
+            currentUserId != NeuroEdApp.INVALID_USER_ID -> currentUserId
+            else -> {
+                val sharedPrefs = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+                val storedUserId = sharedPrefs.getInt("userInfoId", NeuroEdApp.INVALID_USER_ID)
+                if (storedUserId != NeuroEdApp.INVALID_USER_ID) {
+                    storedUserId
+                } else {
+                    null // NO DEFAULT
+                }
+            }
+        }
+    }
+
+    // If no valid user ID, show empty state instead of login requirement
+    val finalUserId = actualUserId ?: NeuroEdApp.INVALID_USER_ID
+
+    // Create repository and ViewModel with fallback user ID
+    val repository = remember(finalUserId) {
+        UserCharacterGet(RetrofitClient.apiService)
+    }
+
     val viewModel: UserCharacterListViewModel = viewModel(
-        factory = CharacterGetViewModelFactory(repository, userId)
+        factory = CharacterGetViewModelFactory(repository, finalUserId)
     )
 
-    // observe the LiveData as Compose state
     val characters by viewModel.userCharacterList.observeAsState(initial = emptyList())
+    val isLoading by viewModel.isLoading.observeAsState(initial = true)
+    val errorMessage by viewModel.errorMessage.observeAsState()
 
-    // Add basic loading state
-    var isLoading by remember { mutableStateOf(true) }
-
-    // Update loading state when characters are loaded
-    LaunchedEffect(characters) {
-        if (characters.isNotEmpty()) {
-            isLoading = false
-        }
-    }
-
-    // Add a timeout to prevent infinite loading state
-    LaunchedEffect(Unit) {
-        delay(5000) // 5 seconds timeout
-        isLoading = false
-    }
-
-    if (isLoading && characters.isEmpty()) {
+    // Loading state - Show only when actually loading
+    if (isLoading) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(220.dp),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator()
+                Text(
+                    text = "Loading your characters...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
-    } else if (characters.isEmpty()) {
+    }
+    // Error state - Show error without user ID info
+    else if (errorMessage != null) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(220.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "No characters available",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = "Unable to load characters",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Button(
+                    onClick = { viewModel.loadUserCharacters() }
+                ) {
+                    Text("Try Again")
+                }
+            }
         }
-    } else {
-        // render a LazyRow of real CharacterGetData items
-        LazyRow(
+    }
+    // Empty state
+    else if (characters.isEmpty()) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .height(220.dp),
+            contentAlignment = Alignment.Center
         ) {
-            items(characters) { character ->
-                // Use the null-safe version of AIProfileCard
-                NullSafeAIProfileCard(character = character) {
-                    navController.navigate("ChatScreen/${character.id}")
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "No characters yet",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Create your first AI character to get started",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Button(
+                    onClick = { navController.navigate("CharacterCreateScreen") }
+                ) {
+                    Text("Create Character")
+                }
+            }
+        }
+    }
+    // Characters display - Clean without user ID text
+    else {
+        Column {
+            // Characters list without user info header
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Show first 3 characters for preview
+                val previewCharacters = characters.take(3)
+                items(previewCharacters) { character ->
+                    NullSafeAIProfileCard(
+                        character = character,
+                        currentUserId = actualUserId.toString()
+                    ) {
+                        navController.navigate("ChatScreen/${character.id}/$actualUserId")
+                    }
+                }
+
+                // Show "See All" if more than 3 characters
+                if (characters.size > 3) {
+                    item {
+                        SeeAllCharactersCard(
+                            onClick = {
+                                navController.navigate("FullCharacterListScreen/$actualUserId")
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// 2. A null-safe wrapper for AIProfileCard
+// 2. See All Characters Card - Same as SubjectList's SeeAllCard
+@Composable
+fun SeeAllCharactersCard(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(170.dp)
+            .height(220.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Icon
+            Box(
+                modifier = Modifier
+                    .size(70.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "See All",
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Text
+            Text(
+                text = "See All",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Characters",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // View All Button
+            Button(
+                onClick = onClick,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.fillMaxWidth(0.85f)
+            ) {
+                Text(
+                    text = "View All",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+    }
+}
+
+// 3. A null-safe wrapper for AIProfileCard
 @Composable
 fun NullSafeAIProfileCard(
     character: CharacterGetData,
+    currentUserId: String? = null, // Add currentUserId parameter
     onClick: () -> Unit
 ) {
-    // Create a safe version of the character with default values for null fields
     val safeCharacter = CharacterGetData(
         id = character.id,
         Character_name = character.Character_name ?: "Unknown",
@@ -1886,126 +3672,146 @@ fun NullSafeAIProfileCard(
         StarCount = character.StarCount
     )
 
-    // Use the original AIProfileCard with the safe character
-    AIProfileCard(character = safeCharacter, onClick = onClick)
+    AIProfileCard(
+        character = safeCharacter,
+        currentUserId = currentUserId, // Pass currentUserId
+        onClick = onClick
+    )
 }
 
-// 3. Original AIProfileCard that expects non-null values
+
+// 4. Original AIProfileCard that expects non-null values
 @Composable
 fun AIProfileCard(
     character: CharacterGetData,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    currentUserId: String? = null
 ) {
     Card(
         modifier = Modifier
             .width(170.dp)
             .height(220.dp)
             .clickable(onClick = onClick),
-        shape     = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
-            modifier            = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Avatar placeholder
+            // Avatar
             Box(
                 modifier = Modifier
-                    .size(70.dp)
+                    .size(60.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                    .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector     = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier        = Modifier.size(40.dp),
-                    tint            = MaterialTheme.colorScheme.primary
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Character Avatar",
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Name & description
+            // Character Name
             Text(
-                text       = character.Character_name,
+                text = character.Character_name,
                 fontWeight = FontWeight.Bold,
-                fontSize   = 13.sp,
-                color      = MaterialTheme.colorScheme.onSurface,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
+            // Description with weight to take available space
             Text(
-                text       = character.Description,
-                fontSize   = 10.sp,
-                textAlign  = TextAlign.Center,
-                color      = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier   = Modifier.padding(horizontal = 6.dp),
-                maxLines   = 3,
-                overflow   = TextOverflow.Ellipsis
+                text = character.Description,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .weight(1f) // This makes it take available space
+                    .padding(horizontal = 4.dp),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 14.sp
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ChatCount & StarCount
+            // Stats Row
             Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Chat count
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Chat Count
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Icon(
-                        imageVector        = Icons.Default.MailOutline,
+                        imageVector = Icons.Default.MailOutline,
                         contentDescription = "Chats",
-                        modifier           = Modifier.size(14.dp),
-                        tint               = MaterialTheme.colorScheme.primary
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(Modifier.width(2.dp))
                     Text(
-                        text       = "${character.ChatCount}",
+                        text = "${character.ChatCount}",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize   = 12.sp,
-                        color      = MaterialTheme.colorScheme.onSurface
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
-                // Star count
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Star Count
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Icon(
-                        imageVector        = Icons.Default.Star,
+                        imageVector = Icons.Default.Star,
                         contentDescription = "Stars",
-                        modifier           = Modifier.size(14.dp),
-                        tint               = Color(0xFFFFD700)
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFFFFD700)
                     )
-                    Spacer(Modifier.width(2.dp))
                     Text(
-                        text       = "${character.StarCount}",
+                        text = "${character.StarCount}",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize   = 12.sp,
-                        color      = MaterialTheme.colorScheme.onSurface
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
+            // Chat Now Button - Always at bottom
             Button(
                 onClick = onClick,
-                shape   = RoundedCornerShape(12.dp),
-                colors  = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth(0.85f)
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text       = "Chat Now",
-                    fontSize   = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "Chat Now",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
@@ -2074,18 +3880,19 @@ fun getAllImages(context: Context): List<android.net.Uri> {
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun Animation(navController: NavController) {
-    // List of learning messages to display
     val learningCards = listOf(
-        "Learning Step 1",
-        "Learning Step 2",
-        "Learning Step 3",
-        "Learning Step 4"
+        "🌟 Believe in yourself and your abilities.",
+        "📚 Read for at least 10 minutes today.",
+        "🎯 Set one clear goal for today.",
+        "🧠 Brain exercise: Try to recall yesterday’s learnings.",
+        "💡 Pomodoro tip: 25 minutes focus, 5 minutes break.",
+        "🏆 Congratulations! You completed 3 learning steps!",
+        "👥 Invite a friend to learn with you and stay motivated.",
+        "🧘‍♂️ Relax your mind: Take 3 deep breaths before studying."
     )
 
-    // Track the current index
     var currentIndex by remember { mutableStateOf(0) }
 
-    // Cycle through cards every 3 seconds
     LaunchedEffect(Unit) {
         while (true) {
             delay(3000)
@@ -2093,7 +3900,7 @@ fun Animation(navController: NavController) {
         }
     }
 
-    // Slide + fade with a small scale effect
+    // Slide + fade + scale animation
     AnimatedContent(
         targetState = currentIndex,
         transitionSpec = {
@@ -2108,39 +3915,55 @@ fun Animation(navController: NavController) {
         },
         label = "LearningStepsAnimation"
     ) { targetIndex ->
-        // A gradient brush background for the card
-        val gradientBrush = Brush.horizontalGradient(
+
+        // Fancy Gradient Brush
+        val gradientBrush = Brush.linearGradient(
             colors = listOf(
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)
-            )
+                Color(0xFF8E2DE2), // purple
+                Color(0xFF4A00E0), // blue
+                Color(0xFF00C9FF), // light blue
+                Color(0xFF92FE9D)  // green
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(1000f, 1000f)
         )
 
         Card(
             modifier = Modifier
                 .padding(16.dp)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            elevation = CardDefaults.cardElevation(6.dp)
+                .fillMaxWidth()
+                .height(150.dp)
+                .shadow(12.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White.copy(alpha = 0.15f) // Glass effect
+            )
         ) {
             Box(
                 modifier = Modifier
                     .background(gradientBrush)
-                    .padding(16.dp)
-                    .height(120.dp),
+                    .padding(20.dp)
+                    .fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = learningCards[targetIndex],
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onBackground
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        shadow = Shadow(
+                            color = Color.Black,
+                            offset = Offset(2f, 2f),
+                            blurRadius = 6f
+                        )
+                    ),
+                    color = Color.White,
+                    textAlign = TextAlign.Center
                 )
             }
         }
     }
 }
-
-
 
 
 

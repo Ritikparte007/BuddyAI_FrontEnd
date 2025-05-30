@@ -544,20 +544,20 @@ fun AnimatedDice(diceValue: Int, isRolling: Boolean, onDiceClick: () -> Unit, is
             }
         }
 
-        if (!isEnabled && !isRolling) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Lock,
-                    contentDescription = "Disabled",
-                    tint = Color.White
-                )
-            }
-        }
+//        if (!isEnabled && !isRolling) {
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .background(Color.Black.copy(alpha = 0.3f)),
+//                contentAlignment = Alignment.Center
+//            ) {
+//                Icon(
+//                    Icons.Default.Lock,
+//                    contentDescription = "Disabled",
+//                    tint = Color.White
+//                )
+//            }
+//        }
     }
 }
 

@@ -2,17 +2,22 @@ package com.example.neuroed
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+//import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Person
+//import androidx.compose.material.icons.rounded.Book
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,24 +25,25 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import androidx.navigation.NavController
 
-// Model for library items, includes description
-
+// Model for library items
 data class LibraryItem(
-    val imageResId:   Int,
-    val category:     String,
-    val description:  String
+    val imageResId: Int,
+    val category: String,
+    val description: String,
+    val userCount: Int
 )
 
 @Composable
 fun LibrarySection(navController: NavController) {
     val items = listOf(
-        LibraryItem(R.drawable.biology, "Biology", "Exploring DNA mechanics and cellular biology."),
-        LibraryItem(R.drawable.maths,   "Maths",   "Focusing on algebraic structures and proofs."),
-        LibraryItem(R.drawable.maths, "Physics", "Studying quantum phenomena and relativity.")
+        LibraryItem(R.drawable.biology, "Biology", "Exploring DNA mechanics and cellular biology.", 1523),
+        LibraryItem(R.drawable.maths, "Maths", "Focusing on algebraic structures and proofs.", 1945),
+        LibraryItem(R.drawable.maths, "Physics", "Studying quantum phenomena and relativity.", 1210)
     )
 
     Column(
@@ -46,7 +52,7 @@ fun LibrarySection(navController: NavController) {
             .background(MaterialTheme.colorScheme.background)
             .padding(vertical = 16.dp)
     ) {
-        // Header
+        // Header with icon
         Row(
             Modifier
                 .fillMaxWidth()
@@ -54,25 +60,24 @@ fun LibrarySection(navController: NavController) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Library",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                "See All",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = MutableInteractionSource(),
-                        indication = null
-                    ) { /* navigate */ }
-                    .padding(8.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Library Collections",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            TextButton(onClick = { /* navigate */ }) {
+                Text(
+                    "Browse All",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
 
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -80,24 +85,26 @@ fun LibrarySection(navController: NavController) {
             modifier = Modifier.fillMaxWidth()
         ) {
             items(items) { item ->
+                // Horizontal card design
                 Card(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier
-                        .width(250.dp)
+                        .width(280.dp)
+                        .height(120.dp)
                         .animateContentSize()
-                        .clickable { navController.navigate(item.category) }
+                        .clickable { navController.navigate("library/${item.category}") }
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Image section
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        // Left side - Image
                         Box(
                             Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
-                                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                                .width(100.dp)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
                         ) {
                             AsyncImage(
                                 model = item.imageResId,
@@ -105,46 +112,86 @@ fun LibrarySection(navController: NavController) {
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
-                            // Gradient overlay
-                            Box(
-                                Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                Color.Black.copy(alpha = 0.6f)
-                                            ), startY = 60f
-                                        )
-                                    )
-                            )
-                            // Text overlay
-                            Column(
-                                Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(12.dp)
+
+                            // Category pill overlay at bottom
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 8.dp)
                             ) {
                                 Text(
                                     item.category,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = Color.White
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    item.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    maxLines = 2
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
-                        // Bottom filler so image doesn't fill entire card
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(40.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        )
+
+                        // Right side - Content
+                        Column(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .weight(1f)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    item.category + " Collection",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    item.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            // User count and bookmark
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // User count
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "User Count",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "${item.userCount}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                // Bookmark icon
+                                IconButton(
+                                    onClick = { /* Add to bookmarks */ },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Bookmark",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

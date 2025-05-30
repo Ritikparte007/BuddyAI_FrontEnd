@@ -1,63 +1,125 @@
 package com.example.neuroed
 
+import android.app.Activity
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material3.*
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
-import coil.compose.rememberAsyncImagePainter
+import coil.compose.AsyncImage
 import com.example.neuroed.R
 import com.example.neuroed.model.SubjectCreateModel
+import com.example.neuroed.model.UserInfoViewModel
 import com.example.neuroed.network.RetrofitClient
 import com.example.neuroed.repository.SubjectCreateRepository
 import com.example.neuroed.viewmodel.SubjectCreateViewModel
 import com.example.neuroed.viewmodel.SubjectCreateViewModelFactory
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import androidx.activity.ComponentActivity
 import java.util.Locale
+
+// Enhanced theming matching Character Creation
+private val SubjectAppDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF6C63FF),          // Vibrant purple
+    secondary = Color(0xFFAC6262),        // Accent red
+    tertiary = Color(0xFF3E8CF1),         // Accent blue
+    background = Color(0xFF121212),       // Deep dark background
+    surface = Color(0xFF1E1E1E),          // Slightly lighter surface
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = Color.White,
+    onSurface = Color.White,
+)
+
+// Custom colors for Subject Creation
+val SubjectImagePlaceholder = Color(0xFF2A2A2A)
+val SubjectInputFieldBackground = Color(0xFF2A2A2A)
+val SubjectButtonGradientStart = Color(0xFF6C63FF)
+val SubjectButtonGradientEnd = Color(0xFF8E85FF)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateSubjectScreen(navController: NavController) {
-    // Input field states.
+fun CreateSubjectScreen(
+    navController: NavController
+) {
+    // Input field states
     var describeSubject by remember { mutableStateOf("") }
     var selectEducation by remember { mutableStateOf("") }
     var selectSubject by remember { mutableStateOf("") }
     var goals by remember { mutableStateOf("") }
     var learningType by remember { mutableStateOf("") }
 
-    // States for date, time, and day.
+    // States for date, time, and day
     var subjectDate by remember { mutableStateOf("") }
     var subjectTime by remember { mutableStateOf("") }
     var subjectDay by remember { mutableStateOf("") }
 
-    // Automatically fetch current date, time, and day.
+    val userInfoViewModel: UserInfoViewModel = viewModel()
+    val context = LocalContext.current
+
+    // Observe the userId
+    val userId by userInfoViewModel.userId.collectAsState()
+
+    // State for showing success popup
+    var showSuccessPopup by remember { mutableStateOf(false) }
+
+    // Profile image state
+    var profileImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showImagePickerDialog by remember { mutableStateOf(false) }
+
+    // Focus states for animated hints
+    var isSubjectFocused by remember { mutableStateOf(false) }
+    var isGoalsFocused by remember { mutableStateOf(false) }
+
+    // Form validation
+    var isFormValid by remember { mutableStateOf(false) }
+
+    // Load the userId when the composable is first created
+    LaunchedEffect(Unit) {
+        userInfoViewModel.loadUserId(context)
+    }
+
+    // Automatically fetch current date, time, and day
     LaunchedEffect(Unit) {
         val calendar = Calendar.getInstance()
         val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -68,59 +130,65 @@ fun CreateSubjectScreen(navController: NavController) {
         subjectDay = dayFormatter.format(calendar.time)
     }
 
-    // Profile image state.
-    var profileImageUri by remember { mutableStateOf<Uri?>(null) }
-    var showImagePickerSheet by remember { mutableStateOf(false) }
+    // Validate form whenever inputs change
+    LaunchedEffect(describeSubject, selectEducation, selectSubject, goals, learningType) {
+        isFormValid = describeSubject.isNotBlank() &&
+                selectEducation.isNotBlank() &&
+                selectSubject.isNotBlank() &&
+                goals.isNotBlank() &&
+                learningType.isNotBlank()
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(contract = GetContent()) { uri: Uri? ->
         if (uri != null) {
             profileImageUri = uri
-            showImagePickerSheet = false
+            showImagePickerDialog = false
         }
     }
 
-    // Loading state.
-    var isLoading by remember { mutableStateOf(false) }
-
-    // Flag to check if the user has attempted to submit.
-    var isSubmitted by remember { mutableStateOf(false) }
-
-    // Initialize network components.
+    // Initialize network components
     val apiService = RetrofitClient.apiService
     val repository = SubjectCreateRepository(apiService)
     val viewModel: SubjectCreateViewModel = viewModel(
         factory = SubjectCreateViewModelFactory(repository)
     )
 
-    // Observe creation response.
+    // Observe creation response with success popup
     val createdResponse = viewModel.createdSubjectResponse
     if (createdResponse != null) {
         LaunchedEffect(createdResponse) {
+            // Show success popup first
+            showSuccessPopup = true
+            // Wait 1.5 seconds before navigating
+            delay(1500)
+
+            // Set result to indicate subject list should be refreshed
+            val resultIntent = Intent()
+            resultIntent.putExtra("REFRESH_SUBJECTS", true)
+            (context as? ComponentActivity)?.setResult(Activity.RESULT_OK, resultIntent)
+
+            // Navigate back to home screen
             navController.navigate("home") {
                 popUpTo("createSubjectScreen") { inclusive = true }
             }
         }
     }
 
-    // Only mark an error if the user has attempted submission.
-    val isDescribeError = isSubmitted && describeSubject.isBlank()
-    val isEducationError = isSubmitted && selectEducation.isBlank()
-    val isSubjectError = isSubmitted && selectSubject.isBlank()
-    val isGoalsError = isSubmitted && goals.isBlank()
-    val isLearningTypeError = isSubmitted && learningType.isBlank()
-
-    Box(modifier = Modifier.fillMaxSize()) {
+    MaterialTheme(
+        colorScheme = SubjectAppDarkColorScheme
+    ) {
         Scaffold(
             topBar = {
-                CenterAlignedTopAppBar(
+                TopAppBar(
                     title = {
                         Text(
                             text = "Create Subject",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
+                        IconButton(onClick = { navController.navigateUp() }) {
                             Icon(
                                 imageVector = Icons.Default.ArrowBack,
                                 contentDescription = "Back",
@@ -128,8 +196,9 @@ fun CreateSubjectScreen(navController: NavController) {
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color(0xFF121212),
+                        scrolledContainerColor = Color(0xFF121212),
                         titleContentColor = Color.White,
                         navigationIconContentColor = Color.White
                     )
@@ -137,180 +206,495 @@ fun CreateSubjectScreen(navController: NavController) {
             },
             containerColor = Color(0xFF121212)
         ) { innerPadding ->
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 24.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
-                // Profile image.
-                Box(modifier = Modifier.size(100.dp)) {
-                    if (profileImageUri != null) {
-                        Image(
-                            painter = rememberAsyncImagePainter(model = profileImageUri),
-                            contentDescription = "Profile",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.biology),
-                            contentDescription = "Profile",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    }
-                    IconButton(
-                        onClick = { showImagePickerSheet = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(24.dp)
-                            .background(Color.White, shape = CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            tint = Color.Black,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                ModernInputBox(
-                    label = "Describe Subject",
-                    value = describeSubject,
-                    onValueChange = { describeSubject = it },
-                    isError = isDescribeError,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                ModernSelectBox(
-                    label = "Select Education",
-                    options = listOf("High School", "Undergraduate", "Postgraduate", "Other"),
-                    selectedOption = selectEducation,
-                    onOptionSelected = { selectEducation = it },
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                ModernSelectBox(
-                    label = "Select Subject",
-                    options = listOf("Biology", "Mathematics", "Chemistry", "Physics", "Other"),
-                    selectedOption = selectSubject,
-                    onOptionSelected = { selectSubject = it },
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                ModernInputBox(
-                    label = "Goals",
-                    value = goals,
-                    onValueChange = { goals = it },
-                    isError = isGoalsError,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                ModernSelectBox(
-                    label = "Learning Type",
-                    options = listOf("Online", "In-Person", "Hybrid"),
-                    selectedOption = learningType,
-                    onOptionSelected = { learningType = it },
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                ModernSubmitButton(
-                    text = "Create",
-                    onClick = {
-                        // Set the submit flag to true so errors show.
-                        isSubmitted = true
-                        // Prevent submission if any required field is empty.
-                        if (isDescribeError || isEducationError || isSubjectError || isGoalsError || isLearningTypeError) {
-                            return@ModernSubmitButton
-                        }
-                        isLoading = true
-                        val userId = 1  // Replace with your actual user ID if needed.
-                        val image = profileImageUri?.toString() ?: "default_image_url"
-                        val subjectData = SubjectCreateModel(
-                            userId = userId,
-                            image = image,
-                            subjectDescription = describeSubject,
-                            education = selectEducation,
-                            subject = selectSubject,
-                            goals = goals,
-                            learningTypes = learningType,
-                            date = subjectDate,
-                            time = subjectTime,
-                            day = subjectDay
-                        )
-                        viewModel.createSubject(subjectData)
-                    },
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-        }
-
-        // Bottom sheet for image selection.
-        if (showImagePickerSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showImagePickerSheet = false }
-            ) {
-                Column(
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                        .fillMaxSize()
+                        .background(Color(0xFF121212)),
+                    color = Color(0xFF121212)
                 ) {
-                    Text(
-                        text = "Select Profile Image",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    Button(
-                        onClick = { imagePickerLauncher.launch("image/*") },
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Pick from Gallery")
+                        // Enhanced profile avatar area with animation and better shadows
+                        Box(
+                            modifier = Modifier
+                                .size(140.dp)
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Circular background with animated border when image is selected
+                            Surface(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                                    .shadow(elevation = 8.dp, shape = CircleShape, spotColor = SubjectButtonGradientStart)
+                                    .then(
+                                        if (profileImageUri != null) {
+                                            Modifier.border(width = 2.dp, color = SubjectButtonGradientStart, shape = CircleShape)
+                                        } else Modifier
+                                    ),
+                                color = SubjectImagePlaceholder,
+                                shape = CircleShape
+                            ) {
+                                // Display the selected image if available
+                                if (profileImageUri != null) {
+                                    AsyncImage(
+                                        model = profileImageUri,
+                                        contentDescription = "Subject Image",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    // Default subject placeholder
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AddCircle,
+                                            contentDescription = "Add Photo",
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(40.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // "Add" button overlay with gradient background
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .offset(x = 6.dp, y = 6.dp)
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(SubjectButtonGradientStart, SubjectButtonGradientEnd)
+                                        )
+                                    )
+                                    .clickable { showImagePickerDialog = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Subject Image",
+//                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Choose a photo for your subject",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+                        )
+
+                        // Subject Description Input with animation
+                        SubjectStyledInputField(
+                            label = "Describe Subject",
+                            value = describeSubject,
+                            onValueChange = { describeSubject = it },
+                            placeholder = "Enter subject description",
+                            isFocused = isSubjectFocused,
+                            onFocusChange = { isSubjectFocused = it },
+                            isRequired = true
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Education Level Dropdown
+                        SubjectStyledDropdownField(
+                            label = "Education Level",
+                            options = listOf("High School", "Undergraduate", "Postgraduate", "Other"),
+                            selectedOption = selectEducation,
+                            onOptionSelected = { selectEducation = it },
+                            isRequired = true
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Subject Category Dropdown
+                        SubjectStyledDropdownField(
+                            label = "Subject Category",
+                            options = listOf("Biology", "Mathematics", "Chemistry", "Physics", "Other"),
+                            selectedOption = selectSubject,
+                            onOptionSelected = { selectSubject = it },
+                            isRequired = true
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Goals Input
+                        SubjectStyledInputField(
+                            label = "Learning Goals",
+                            value = goals,
+                            onValueChange = { goals = it },
+                            placeholder = "What do you want to achieve?",
+                            isFocused = isGoalsFocused,
+                            onFocusChange = { isGoalsFocused = it },
+                            isRequired = true
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Describe your learning objectives and what you hope to accomplish",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 4.dp, bottom = 16.dp)
+                        )
+
+                        // Learning Type Dropdown
+                        SubjectStyledDropdownField(
+                            label = "Learning Type",
+                            options = listOf("Online", "In-Person", "Hybrid"),
+                            selectedOption = learningType,
+                            onOptionSelected = { learningType = it },
+                            isRequired = true
+                        )
+
+                        Spacer(modifier = Modifier.height(48.dp))
+
+                        // Save Button with Character Creation style
+                        Button(
+                            onClick = {
+                                val image = profileImageUri?.toString() ?: "default_image_url"
+                                val subjectData = SubjectCreateModel(
+                                    userId = userId,
+                                    image = image,
+                                    subjectDescription = describeSubject,
+                                    education = selectEducation,
+                                    subject = selectSubject,
+                                    goals = goals,
+                                    learningTypes = learningType,
+                                    date = subjectDate,
+                                    time = subjectTime,
+                                    day = subjectDay
+                                )
+                                viewModel.createSubject(subjectData)
+                            },
+                            enabled = isFormValid,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = if (isFormValid) {
+                                                listOf(SubjectButtonGradientStart, SubjectButtonGradientEnd)
+                                            } else {
+                                                listOf(Color.Gray.copy(alpha = 0.3f), Color.Gray.copy(alpha = 0.3f))
+                                            }
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (isFormValid) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    Text(
+                                        "CREATE SUBJECT",
+                                        color = if (isFormValid) Color.White else Color.White.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = { showImagePickerSheet = false },
-                        modifier = Modifier.fillMaxWidth()
+                }
+
+                // Simple Image Picker Dialog
+                if (showImagePickerDialog) {
+                    Dialog(
+                        onDismissRequest = { showImagePickerDialog = false },
+                        properties = DialogProperties(dismissOnClickOutside = true)
                     ) {
-                        Text("Cancel")
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF1E1E1E)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Choose Image Source",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(bottom = 16.dp)
+                                )
+
+                                // Gallery option
+                                ElevatedButton(
+                                    onClick = { imagePickerLauncher.launch("image/*") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    colors = ButtonDefaults.elevatedButtonColors(
+                                        containerColor = Color(0xFF2A2A2A),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.gallery),
+                                            contentDescription = "Gallery",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text("Choose from Gallery")
+                                    }
+                                }
+
+                                TextButton(
+                                    onClick = { showImagePickerDialog = false },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp)
+                                ) {
+                                    Text("Cancel", color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Success popup overlay matching Character Creation
+                AnimatedVisibility(
+                    visible = showSuccessPopup,
+                    enter = fadeIn(animationSpec = tween(300)),
+                    exit = fadeOut(animationSpec = tween(300))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0x99000000)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(32.dp)
+                                .width(300.dp)
+                                .shadow(elevation = 16.dp, shape = RoundedCornerShape(16.dp))
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(Color(0xFF1E1E1E), Color(0xFF252525))
+                                    ),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(SubjectButtonGradientStart, SubjectButtonGradientEnd)
+                                    ),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Success icon with circular background
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .background(
+                                        brush = Brush.radialGradient(
+                                            colors = listOf(SubjectButtonGradientStart.copy(alpha = 0.2f), Color.Transparent),
+                                            radius = 80f
+                                        ),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .background(
+                                            brush = Brush.linearGradient(
+                                                colors = listOf(SubjectButtonGradientStart, SubjectButtonGradientEnd)
+                                            ),
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Success",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Subject Created!",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Your subject has been created successfully.",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Progress indicator to show it's about to navigate away
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = SubjectButtonGradientStart,
+                                trackColor = Color(0xFF2A2A2A)
+                            )
+                        }
                     }
                 }
             }
-        }
-
-        // Loading dialog pop-up.
-        if (isLoading) {
-            LoadingDialog()
         }
     }
 }
 
+// Subject styled components matching Character Creation style
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoadingDialog() {
-    Dialog(onDismissRequest = { /* Prevent dismiss */ }) {
-        Box(
+fun SubjectStyledInputField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String = "",
+    isFocused: Boolean = false,
+    onFocusChange: (Boolean) -> Unit = {},
+    isRequired: Boolean = false
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+        ) {
+            Text(
+                text = label,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+            if (isRequired) {
+                Text(
+                    text = " *",
+                    color = SubjectAppDarkColorScheme.secondary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = TextStyle(
+                fontSize = 16.sp,
+                color = Color.White
+            ),
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 16.sp
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(16.dp))
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
+                .onFocusChanged { state -> onFocusChange(state.isFocused) },
+            shape = RoundedCornerShape(12.dp),
+            colors = TextFieldDefaults.outlinedTextFieldColors(
+                containerColor = SubjectInputFieldBackground,
+                focusedBorderColor = SubjectButtonGradientStart,
+                unfocusedBorderColor = Color.Transparent,
+                cursorColor = SubjectButtonGradientStart,
+                focusedLabelColor = SubjectButtonGradientStart,
+                unfocusedLabelColor = Color.Gray,
+                selectionColors = TextSelectionColors(
+                    handleColor = SubjectButtonGradientStart,
+                    backgroundColor = SubjectButtonGradientStart.copy(alpha = 0.3f)
+                )
+            )
+        )
+
+        AnimatedVisibility(
+            visible = isFocused,
+            enter = fadeIn(animationSpec = tween(200)),
+            exit = fadeOut(animationSpec = tween(200))
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(
-                    color = Color.White,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Creating your subject...",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
-                )
+            when (label) {
+                "Describe Subject" -> {
+                    Text(
+                        text = "Provide a detailed description of your subject",
+                        color = SubjectButtonGradientStart.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    )
+                }
+                "Learning Goals" -> {
+                    Text(
+                        text = "What specific outcomes do you want to achieve?",
+                        color = SubjectButtonGradientStart.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    )
+                }
             }
         }
     }
@@ -318,122 +702,95 @@ fun LoadingDialog() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModernSelectBox(
+fun SubjectStyledDropdownField(
     label: String,
     options: List<String>,
     selectedOption: String,
     onOptionSelected: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(8.dp)
+    isRequired: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = selectedOption,
-            onValueChange = {},
-            readOnly = true,
-            label = {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-            },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
-            shape = shape,
-            colors = TextFieldDefaults.outlinedTextFieldColors(
-                focusedBorderColor = Color(0xFF1F7A8C),
-                unfocusedBorderColor = Color.Gray,
-                cursorColor = Color.White
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor()
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
         ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = {
-                        Text(text = option, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                    },
-                    onClick = {
-                        onOptionSelected(option)
-                        expanded = false
-                    }
+            Text(
+                text = label,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+            if (isRequired) {
+                Text(
+                    text = " *",
+                    color = SubjectAppDarkColorScheme.secondary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
                 )
             }
         }
-    }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ModernInputBox(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    isError: Boolean = false,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(8.dp)
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isError) Color.Red else Color.Gray
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedOption,
+                onValueChange = {},
+                readOnly = true,
+                textStyle = TextStyle(
+                    fontSize = 16.sp,
+                    color = Color.White
+                ),
+                placeholder = {
+                    Text(
+                        text = "Select $label",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 16.sp
+                    )
+                },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = SubjectInputFieldBackground,
+                    focusedBorderColor = SubjectButtonGradientStart,
+                    unfocusedBorderColor = Color.Transparent,
+                    cursorColor = SubjectButtonGradientStart
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
             )
-        },
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
-        shape = shape,
-        isError = isError,
-        colors = TextFieldDefaults.outlinedTextFieldColors(
-            focusedBorderColor = if (isError) Color.Red else Color(0xFF1F7A8C),
-            unfocusedBorderColor = if (isError) Color.Red else Color.Gray,
-            cursorColor = Color.White
-        ),
-        modifier = modifier.fillMaxWidth()
-    )
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ModernSubmitButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        shape = shape,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        )
-    ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun CreateSubjectScreenPreview() {
-    val navController = rememberNavController()
-    MaterialTheme {
-        CreateSubjectScreen(navController = navController)
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(Color(0xFF1E1E1E))
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = option,
+                                color = Color.White,
+                                fontSize = 16.sp
+                            )
+                        },
+                        onClick = {
+                            onOptionSelected(option)
+                            expanded = false
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = Color.White
+                        )
+                    )
+                }
+            }
+        }
     }
 }
